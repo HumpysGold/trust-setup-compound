@@ -4,6 +4,8 @@ pragma solidity ^0.8.25;
 import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
+import {FixedPointMathLib} from "solady/FixedPointMathLib.sol";
+
 import {IOracle} from "./interfaces/IOracle.sol";
 import {IWeightedPool} from "./interfaces/IWeightedPool.sol";
 import {IGauge} from "./interfaces/IGauge.sol";
@@ -21,6 +23,9 @@ contract TrustSetup {
     ///////////////////////////// Constants ///////////////////////////////
     uint256 constant ORACLE_DECIMALS_BASE = 1e8;
     uint256 constant BASE_PRECISION = 1e18;
+    uint256 constant BASE_PRECISION_TWOFOLD = 1e36;
+    uint256 constant BASE_ORACLE_DIFF_PRECISION = 1e10;
+    uint256 constant SLIPPAGE_PRECISION = 10000;
 
     address public constant GOLD_MSIG = 0x941dcEA21101A385b979286CC6D6A9Bf435EB1C2;
     address public constant COMPOUND_TIMELOCK = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925;
@@ -34,6 +39,7 @@ contract TrustSetup {
 
     IWeightedPool public constant BPT = IWeightedPool(0x56bc9d9987edeC2fC6e1990e27AF4A0987b53096);
     uint256 constant GOLD_COMP_NORMALIZED_WEIGHT = 990000000000000000;
+    uint256 constant WETH_NORMALIZED_WEIGHT = 10000000000000000;
 
     IGauge public constant GAUGE = IGauge(0x4DcfB8105C663F199c1a640549FC3579db4E3e65);
 
@@ -42,6 +48,9 @@ contract TrustSetup {
 
     IOracle public constant ORACLE_COMP_USD = IOracle(0xdbd020CAeF83eFd542f4De03e3cF0C28A4428bd5);
     uint256 constant ORACLE_COMP_USD_HEART_BEAT = 1 hours;
+
+    IOracle public constant ORACLE_ETH_USD = IOracle(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
+    uint256 constant ORACLE_ETH_USD_HEART_BEAT = 1 hours;
 
     IBalancerVault public constant BALANCER_VAULT = IBalancerVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
     bytes32 public constant GOLD_COMP_WETH_POOL_ID = 0x56bc9d9987edec2fc6e1990e27af4a0987b53096000200000000000000000686;
@@ -62,6 +71,8 @@ contract TrustSetup {
     error StaleOracle();
 
     /////////////////////////////// Events ////////////////////////////////
+    event LogValue(string, uint256);
+
     event CompInvested(uint256 compAmount, uint256 bptReceived, uint256 timestampt);
     event CompDivestedQueue(uint256 compAmount, uint256 bptWithdrawn, uint256 timestampt);
     event CompDivestedCompleted(uint256 compAmount, uint256 timestampt);
@@ -225,9 +236,8 @@ contract TrustSetup {
 
     /// @param _bptBalance The amount of BPT to be withdraw from the pool
     function _withdrawFromBalancerPool(uint256 _bptBalance) internal {
-        // @audit ref: https://docs.balancer.fi/concepts/advanced/valuing-bpt/valuing-bpt.html#weighted-pools
         uint256[] memory minAmountsOut = new uint256[](2);
-        minAmountsOut[0] = _bptBalance / 3;
+        minAmountsOut[0] = _minCompOut(_bptBalance);
 
         BALANCER_VAULT.exitPool(
             GOLD_COMP_WETH_POOL_ID,
@@ -266,22 +276,52 @@ contract TrustSetup {
     }
 
     /// @dev Explanation at: https://docs.balancer.fi/concepts/advanced/valuing-bpt/valuing-bpt.html#weighted-pools
-    /// @param _goldCompBalance The amount of GOLDCOMP to be converted into min BPT expected
-    function _calcMinBpt(uint256 _goldCompBalance) internal returns (uint256) {
+    /// @return The value of the BPT in USD
+    /// @return The latest oracle answer of COMP in USD
+    function _bptToUsd() internal returns (uint256, uint256) {
         // 1:1 ratio (COMP:GOLDCOMP)
         uint256 compToUsd = _oracleHelper(ORACLE_COMP_USD, ORACLE_COMP_USD_HEART_BEAT);
+        // 1:1 ratio (ETH:WETH)
+        uint256 ethToUsd = _oracleHelper(ORACLE_ETH_USD, ORACLE_ETH_USD_HEART_BEAT);
 
         uint256 invariantDivSupply = (BPT.getLastPostJoinExitInvariant() * BASE_PRECISION) / BPT.totalSupply();
-        // @audit requires using pow of the weight. perhaps exponentiation by squaring?
-        uint256 productSequenceOne = (compToUsd * BASE_PRECISION / GOLD_COMP_NORMALIZED_WEIGHT);
+        uint256 productSequenceOne = uint256(
+            FixedPointMathLib.powWad(
+                int256((compToUsd * BASE_PRECISION / GOLD_COMP_NORMALIZED_WEIGHT) * BASE_ORACLE_DIFF_PRECISION),
+                int256(GOLD_COMP_NORMALIZED_WEIGHT)
+            )
+        );
+        uint256 productSequenceTwo = uint256(
+            FixedPointMathLib.powWad(
+                int256((ethToUsd * BASE_PRECISION / WETH_NORMALIZED_WEIGHT) * BASE_ORACLE_DIFF_PRECISION),
+                int256(WETH_NORMALIZED_WEIGHT)
+            )
+        );
 
-        // @audit productSequenceTwo is not used in the calculation since it is aproximatly 1
-        // e.g: 2000**0.01=1.0789723114019272, 3600**0.01 = 1.023292992280754, 5000**0.01 = 1.023292992280754, 7000**0.01 = 1.023292992280754 etc
-        uint256 bptToUsd = (invariantDivSupply * productSequenceOne) / BASE_PRECISION;
-        uint256 ratio = compToUsd * ORACLE_DECIMALS_BASE / bptToUsd;
+        // bpt = invariantDivSupply * productSequenceOne * productSequenceTwo
+        uint256 bptToUsd = (invariantDivSupply * productSequenceOne * productSequenceTwo) / BASE_PRECISION_TWOFOLD;
+        return (bptToUsd, compToUsd);
+    }
+
+    /// @param _goldCompBalance The amount of GOLDCOMP to be converted into minimum BPT expected
+    function _calcMinBpt(uint256 _goldCompBalance) internal returns (uint256) {
+        (uint256 bptToUsd, uint256 compToUsd) = _bptToUsd();
+        uint256 ratio = compToUsd * BASE_PRECISION / bptToUsd;
         uint256 minBpt = (_goldCompBalance * ratio) / ORACLE_DECIMALS_BASE;
 
-        // slippage accounted
-        return minBpt * 8_500 / 10_000;
+        // use of fixed point arithmetic and the powWad operation introduces a loss of precision, causing productSequenceTwo to be slightly higher than its theoretical value.
+        // to mitigate this, we apply a more aggressive slippage margin, ensuring the minimum expected output amount is protected
+        return minBpt * 9_400 / SLIPPAGE_PRECISION;
+    }
+
+    /// @param _bptBalance The amount of BPT to be converted into minimum COMP out expected
+    function _minCompOut(uint256 _bptBalance) internal returns (uint256) {
+        (uint256 bptToUsd, uint256 compToUsd) = _bptToUsd();
+        uint256 ratio = compToUsd * BASE_PRECISION / bptToUsd;
+        uint256 minComp = (_bptBalance * ORACLE_DECIMALS_BASE) / ratio;
+
+        // use of fixed point arithmetic and the powWad operation introduces a loss of precision, causing productSequenceTwo to be slightly higher than its theoretical value.
+        // to mitigate this, we apply a more aggressive slippage margin, ensuring the minimum expected output amount is protected
+        return minComp * 9_400 / SLIPPAGE_PRECISION;
     }
 }

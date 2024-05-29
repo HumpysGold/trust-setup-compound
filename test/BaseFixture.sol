@@ -7,6 +7,7 @@ import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {ICOMP} from "../src/interfaces/ICOMP.sol";
 import {IBravoGovernance} from "../src/interfaces/IBravoGovernance.sol";
 import {IBalancerQueriesHelper} from "../src/interfaces/IBalancerQueriesHelper.sol";
+import {IOracle} from "../src/interfaces/IOracle.sol";
 
 import {TrustSetup} from "../src/TrustSetup.sol";
 
@@ -60,6 +61,7 @@ contract BaseFixture is Test {
         vm.label(address(trustSetup.GOLD_COMP()), "GOLD_COMP");
         vm.label(address(trustSetup.ORACLE_COMP_ETH()), "ORACLE_COMP_ETH");
         vm.label(address(trustSetup.ORACLE_COMP_USD()), "ORACLE_COMP_USD");
+        vm.label(address(trustSetup.ORACLE_ETH_USD()), "ORACLE_ETH_USD");
     }
 
     function grantCompAndInvest() internal returns (uint256 proposalId) {
@@ -126,5 +128,35 @@ contract BaseFixture is Test {
 
         vm.roll(block.number + COMPOUND_GOVERNANCE.votingPeriod());
         assertEq(COMPOUND_GOVERNANCE.state(_proposalId), uint8(IBravoGovernance.ProposalState.Succeeded));
+    }
+
+    function syncOracleUpdateAt() internal {
+        // manipulate the updateAt value of the oracle for testing purposes
+        // otherwise may trigger stale oracle error since it has sensitive time dependency
+        (, int256 answer,,,) = trustSetup.ORACLE_COMP_USD().latestRoundData();
+        vm.mockCall(
+            address(trustSetup.ORACLE_COMP_USD()),
+            abi.encodeWithSelector(IOracle.latestRoundData.selector),
+            abi.encode(
+                0,
+                answer, // answer
+                0,
+                block.timestamp, // updatedAt
+                0
+            )
+        );
+
+        (, answer,,,) = trustSetup.ORACLE_ETH_USD().latestRoundData();
+        vm.mockCall(
+            address(trustSetup.ORACLE_ETH_USD()),
+            abi.encodeWithSelector(IOracle.latestRoundData.selector),
+            abi.encode(
+                0,
+                answer, // answer
+                0,
+                block.timestamp, // updatedAt
+                0
+            )
+        );
     }
 }

@@ -42,20 +42,7 @@ contract TrustSetupTest is BaseFixture {
         COMPOUND_GOVERNANCE.queue(proposalId);
         vm.warp(block.timestamp + TIMELOCK_DELAY);
 
-        // manipulate the updateAt value of the oracle for testing purposes
-        // otherwise may trigger stale oracle error since it has sensitive time dependency
-        (, int256 answer,,,) = trustSetup.ORACLE_COMP_USD().latestRoundData();
-        vm.mockCall(
-            address(trustSetup.ORACLE_COMP_USD()),
-            abi.encodeWithSelector(IOracle.latestRoundData.selector),
-            abi.encode(
-                0,
-                answer, // answer
-                0,
-                block.timestamp, // updatedAt
-                0
-            )
-        );
+        syncOracleUpdateAt();
 
         // execute: proposalId
         COMPOUND_GOVERNANCE.execute(proposalId);
@@ -95,6 +82,8 @@ contract TrustSetupTest is BaseFixture {
         // queue function can be called by any address
         COMPOUND_GOVERNANCE.queue(proposalId);
         vm.warp(block.timestamp + TIMELOCK_DELAY);
+
+        syncOracleUpdateAt();
 
         // execute: proposalId
         COMPOUND_GOVERNANCE.execute(proposalId);
@@ -145,6 +134,8 @@ contract TrustSetupTest is BaseFixture {
         // queue function can be called by any address
         COMPOUND_GOVERNANCE.queue(proposalId);
         vm.warp(block.timestamp + TIMELOCK_DELAY);
+
+        syncOracleUpdateAt();
 
         // execute: proposalId
         COMPOUND_GOVERNANCE.execute(proposalId);

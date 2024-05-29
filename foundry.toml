@@ -5,6 +5,7 @@ libs = ["lib"]
 remappings = [
     'forge-std/=lib/forge-std/src/',
     'openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/',
+    'solady/=lib/solady/src/utils/'
 ]
 
 [rpc_endpoints]
