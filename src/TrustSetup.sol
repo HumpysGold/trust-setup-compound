@@ -71,8 +71,6 @@ contract TrustSetup {
     error StaleOracle();
 
     /////////////////////////////// Events ////////////////////////////////
-    event LogValue(string, uint256);
-
     event CompInvested(uint256 compAmount, uint256 bptReceived, uint256 timestampt);
     event CompDivestedQueue(uint256 compAmount, uint256 bptWithdrawn, uint256 timestampt);
     event CompDivestedCompleted(uint256 compAmount, uint256 timestampt);
