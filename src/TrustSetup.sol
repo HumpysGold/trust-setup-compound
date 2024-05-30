@@ -167,7 +167,7 @@ contract TrustSetup {
         emit RewardSwapped(goldBalance, wethReceived, block.timestamp);
     }
 
-    /// @notice The caller is swapping a specific amount of COMP tokens at the oracle price (COMP/ETH) for WETH. Permisionless
+    /// @notice The caller is swapping a specific amount of COMP tokens at the oracle price (COMP/ETH) for WETH. Permissionless
     /// @param _compAmount The amount of COMP token being sent into the contract
     function buyWethWithComp(uint256 _compAmount) external {
         uint256 wethAmount = _compToWethRatio(_compAmount);
