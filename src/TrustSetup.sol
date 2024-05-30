@@ -147,7 +147,7 @@ contract TrustSetup {
         GOLD_COMP.withdraw();
 
         uint256 compBalance = COMP.balanceOf(address(this));
-        // official flow to move all COMP out from the contract into comptroller
+        // COMP is sent directly into comptroller
         COMP.safeTransfer(COMPTROLLER, compBalance);
 
         divestmentQueued = false;
@@ -155,11 +155,12 @@ contract TrustSetup {
     }
 
     /// @notice Swaps gauge rewards for WETH. Only callable by the GoldenBoyz multisig, primarily intended to safeguard the minimum amount expected
+    /// @dev The multisig should simulate the swap and ensure the minimum amount of WETH expected is well protected calling offchain querySwap method
     /// @param _minWethOut The minimum amount of WETH expected, calculated offchain
     function swapRewardsForWeth(uint256 _minWethOut) external onlyGoldenBoyzMultisig {
         GAUGE.claim_rewards();
 
-        // assumes only GOLD as reward
+        // assumes only GOLD as reward as per specifications
         uint256 goldBalance = GOLD.balanceOf(address(this));
         uint256 wethReceived = _swapRewardForWeth(goldBalance, _minWethOut);
 
@@ -178,7 +179,7 @@ contract TrustSetup {
         emit WethBoughtWithComp(msg.sender, _compAmount, wethAmount);
     }
 
-    /// @notice Public helper method for buying COMP with WETH and being aware of oracle rate
+    /// @notice Public helper method for buying COMP with WETH and being aware of oracle latest answer
     /// @param _compAmount The amount of COMP token to be converted into WETH
     function getCompToWethRatio(uint256 _compAmount) public returns (uint256) {
         return _compToWethRatio(_compAmount);
@@ -188,6 +189,7 @@ contract TrustSetup {
 
     /// @param _oracle The oracle contract to be queried
     /// @param _heartBeat Amount of seconds that can pass between oracle updates in a healthy environment
+    /// @return The latest oracle answer casted as uint256
     function _oracleHelper(IOracle _oracle, uint256 _heartBeat) internal returns (uint256) {
         (, int256 answer,, uint256 updatedAt,) = _oracle.latestRoundData();
 
@@ -199,10 +201,12 @@ contract TrustSetup {
 
     /// @notice Internally checks the latest oracle price and convert the COMP amount into WETH ratio to facilitate the swap
     /// @param _compAmount The amount of COMP token
+    /// @return The amount of WETH expected given the COMP amount and current oracle latest answer
     function _compToWethRatio(uint256 _compAmount) internal returns (uint256) {
         return (_compAmount * _oracleHelper(ORACLE_COMP_ETH, ORACLE_COMP_ETH_HEART_BEAT)) / ORACLE_DECIMALS_BASE;
     }
 
+    /// @return The pool assets in the 99goldCOMP-1WETH Balancer pool
     function _poolAssets() internal pure returns (address[] memory) {
         address[] memory poolAssets = new address[](2);
         poolAssets[0] = address(GOLD_COMP);
@@ -235,6 +239,7 @@ contract TrustSetup {
     /// @param _bptBalance The amount of BPT to be withdraw from the pool
     function _withdrawFromBalancerPool(uint256 _bptBalance) internal {
         uint256[] memory minAmountsOut = new uint256[](2);
+        // index 0 is the minimum amount of COMP expected
         minAmountsOut[0] = _minCompOut(_bptBalance);
 
         BALANCER_VAULT.exitPool(
@@ -252,31 +257,33 @@ contract TrustSetup {
 
     /// @param _goldAmount The amount of GOLD to be swapped for WETH
     /// @param _minWethOut The minimum amount of WETH expected
+    /// @return The amount of WETH received
     function _swapRewardForWeth(uint256 _goldAmount, uint256 _minWethOut) internal returns (uint256) {
         // only pool in mainnet with GOLD liquidity
-        IBalancerVault.SingleSwap memory singleSwapParams = IBalancerVault.SingleSwap({
-            poolId: GOLD_POOL_ID,
-            kind: IBalancerVault.SwapKind.GIVEN_IN,
-            assetIn: IAsset(address(GOLD)),
-            assetOut: IAsset(address(WETH)),
-            amount: _goldAmount,
-            userData: new bytes(0)
-        });
-
-        IBalancerVault.FundManagement memory funds = IBalancerVault.FundManagement({
-            sender: address(this),
-            fromInternalBalance: false,
-            recipient: payable(address(this)),
-            toInternalBalance: false
-        });
-
-        return BALANCER_VAULT.swap(singleSwapParams, funds, _minWethOut, block.timestamp);
+        // GIVEN_IN type of swap, internally in balancer vault _getAmounts returns amountOut
+        return BALANCER_VAULT.swap(
+            IBalancerVault.SingleSwap({
+                poolId: GOLD_POOL_ID,
+                kind: IBalancerVault.SwapKind.GIVEN_IN,
+                assetIn: IAsset(address(GOLD)),
+                assetOut: IAsset(address(WETH)),
+                amount: _goldAmount,
+                userData: new bytes(0)
+            }),
+            IBalancerVault.FundManagement({
+                sender: address(this),
+                fromInternalBalance: false,
+                recipient: payable(address(this)),
+                toInternalBalance: false
+            }),
+            _minWethOut,
+            block.timestamp
+        );
     }
 
     /// @dev Explanation at: https://docs.balancer.fi/concepts/advanced/valuing-bpt/valuing-bpt.html#weighted-pools
-    /// @return The value of the BPT in USD
-    /// @return The latest oracle answer of COMP in USD
-    function _bptToUsd() internal returns (uint256, uint256) {
+    /// @return The ratio of COMP/BPT
+    function _ratioCompBpt() internal returns (uint256) {
         // 1:1 ratio (COMP:GOLDCOMP)
         uint256 compToUsd = _oracleHelper(ORACLE_COMP_USD, ORACLE_COMP_USD_HEART_BEAT);
         // 1:1 ratio (ETH:WETH)
@@ -296,15 +303,15 @@ contract TrustSetup {
             )
         );
 
-        // bpt = invariantDivSupply * productSequenceOne * productSequenceTwo
+        // formula summary: bpt = invariantDivSupply * productSequenceOne * productSequenceTwo
         uint256 bptToUsd = (invariantDivSupply * productSequenceOne * productSequenceTwo) / BASE_PRECISION_TWOFOLD;
-        return (bptToUsd, compToUsd);
+        return compToUsd * BASE_PRECISION / bptToUsd;
     }
 
     /// @param _goldCompBalance The amount of GOLDCOMP to be converted into minimum BPT expected
+    /// @return The minimum amount of BPT expected
     function _calcMinBpt(uint256 _goldCompBalance) internal returns (uint256) {
-        (uint256 bptToUsd, uint256 compToUsd) = _bptToUsd();
-        uint256 ratio = compToUsd * BASE_PRECISION / bptToUsd;
+        uint256 ratio = _ratioCompBpt();
         uint256 minBpt = (_goldCompBalance * ratio) / ORACLE_DECIMALS_BASE;
 
         // use of fixed point arithmetic and the powWad operation introduces a loss of precision, causing productSequenceTwo to be slightly higher than its theoretical value.
@@ -313,9 +320,9 @@ contract TrustSetup {
     }
 
     /// @param _bptBalance The amount of BPT to be converted into minimum COMP out expected
+    /// @return The minimum amount of COMP expected
     function _minCompOut(uint256 _bptBalance) internal returns (uint256) {
-        (uint256 bptToUsd, uint256 compToUsd) = _bptToUsd();
-        uint256 ratio = compToUsd * BASE_PRECISION / bptToUsd;
+        uint256 ratio = _ratioCompBpt();
         uint256 minComp = (_bptBalance * ORACLE_DECIMALS_BASE) / ratio;
 
         // use of fixed point arithmetic and the powWad operation introduces a loss of precision, causing productSequenceTwo to be slightly higher than its theoretical value.
