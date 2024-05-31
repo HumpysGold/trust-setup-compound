@@ -203,7 +203,8 @@ contract TrustSetup {
     /// @param _compAmount The amount of COMP token
     /// @return The amount of WETH expected given the COMP amount and current oracle latest answer
     function _compToWethRatio(uint256 _compAmount) internal returns (uint256) {
-        return (_compAmount * _oracleHelper(ORACLE_COMP_ETH, ORACLE_COMP_ETH_HEART_BEAT)) / ORACLE_DECIMALS_BASE;
+        // COMP / ETH oracle has 18 decimals
+        return (_compAmount * _oracleHelper(ORACLE_COMP_ETH, ORACLE_COMP_ETH_HEART_BEAT)) / BASE_PRECISION;
     }
 
     /// @return The pool assets in the 99goldCOMP-1WETH Balancer pool
