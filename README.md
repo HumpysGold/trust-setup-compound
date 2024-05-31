@@ -7,7 +7,7 @@ The Compound Trust setup has being developed in response to concerns raised duri
 1. Concerns regarding authority and security around multisig
 2. Unclear investment strategy
 
-The setup offers clarity which entity has the authority to trigger specific actions, such as the Compounds' timelock and the multisig, while the entire investment strategy is verifiable onchain.
+The setup offers clarity which entity has the authority to trigger specific actions, such as the Compound's timelock and the multisig, while the entire investment strategy is verifiable onchain.
 
 ## Architecture
 
@@ -17,13 +17,13 @@ The setup offers clarity which entity has the authority to trigger specific acti
 2. The Compound Timelock will invoke `invest()`.
     1. Once the timelock successfully calls `invest()`, Goldenboyz multisig will periodically call `swapRewardsForWeth(uint256)`.
     2. Bots will call `buyWethWithComp(uint256)` when the optimal opportunity arises, sending COMP's proceeds to the Compound comptroller directly.
-3. If divestment from the setup is desired, the Compound Timelock will trigger `commenceDivestment()`.
+3. If complete or partial divestment from the setup is desired, the Compound's Timelock will trigger `commenceDivestment(uint256)`.
 4. To finalize the investment, after the withdrawal time delay from goldCOMP has elapsed, the Timelock will call the `completeDivestment()` method. Sending all COMP balance back into the Compound's comptroller.
 
 ### Compound's Timelock controls
 
 1. Invest (see `invest()` method): Invests COMP funds into the Balancer pool and stakes the BPT into the appropriate gauge. The first step involves depositing COMP into goldCOMP, which is then single-sidedly deposited into the Balancer Pool.
-2. Commence divestment (see `commenceDivestment()` method): Proceeds to withdraw from the gauge and the Balancer pool, and initiates the withdrawal queue from goldCOMP.
+2. Commence divestment (see `commenceDivestment(uint256)` method): Proceeds to withdraw from the gauge and the Balancer pool, and initiates the withdrawal queue from goldCOMP. Fully or partially.
 3. Complete divestment (see `completeDivestment()` method): Finalizes the divestment from the strategy by officially withdrawing the queued amount of goldCOMP and directly transferring the entire COMP balance in the contract to the Compound comptroller.
 
 ### Goldenboyz multisig controls

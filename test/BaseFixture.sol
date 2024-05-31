@@ -15,6 +15,7 @@ contract BaseFixture is Test {
     ///////////////////////////// Constants ///////////////////////////////
     uint256 constant TIMELOCK_DELAY = 172800;
 
+    // comptroller holds currently 1_631_724e18 COMP
     uint256 constant COMP_INVESTED_AMOUNT = 500_000e18;
 
     address constant MEV_BOT_BUYER = address(655656);
@@ -64,7 +65,7 @@ contract BaseFixture is Test {
         vm.label(address(trustSetup.ORACLE_ETH_USD()), "ORACLE_ETH_USD");
     }
 
-    function grantCompAndInvest() internal returns (uint256 proposalId) {
+    function grantCompAndInvest(uint256 _compToInvest) internal returns (uint256 proposalId) {
         address[] memory targets = new address[](2);
         targets[0] = trustSetup.COMPTROLLER();
         targets[1] = address(trustSetup);
@@ -73,19 +74,20 @@ contract BaseFixture is Test {
         signatures[0] = "_grantComp(address,uint256)";
         signatures[1] = "invest()";
         bytes[] memory calldatas = new bytes[](2);
-        calldatas[0] = abi.encode(address(trustSetup), COMP_INVESTED_AMOUNT);
+        calldatas[0] = abi.encode(address(trustSetup), _compToInvest);
         string memory description = "grant comp to trust setup contract and trigger invest";
         vm.prank(PROPOSER_GOVERNANCE);
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);
     }
 
-    function queueCommenceDivestment() internal returns (uint256 proposalId) {
+    function queueCommenceDivestment(uint256 _bptBalance) internal returns (uint256 proposalId) {
         address[] memory targets = new address[](1);
         targets[0] = address(trustSetup);
         uint256[] memory values = new uint256[](1);
         string[] memory signatures = new string[](1);
-        signatures[0] = "commenceDivestment()";
+        signatures[0] = "commenceDivestment(uint256)";
         bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encode(_bptBalance);
         string memory description = "commence divestment";
         vm.prank(PROPOSER_GOVERNANCE);
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);

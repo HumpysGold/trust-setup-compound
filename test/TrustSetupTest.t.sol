@@ -2,6 +2,7 @@
 pragma solidity ^0.8.25;
 
 import {BaseFixture} from "./BaseFixture.sol";
+import {console} from "forge-std/Test.sol";
 
 import {IOracle} from "../src/interfaces/IOracle.sol";
 import {IBravoGovernance} from "../src/interfaces/IBravoGovernance.sol";
@@ -25,7 +26,10 @@ contract TrustSetupTest is BaseFixture {
         trustSetup.invest();
     }
 
-    function testInvest() public {
+    function testInvest(uint256 _compToInvest) public {
+        vm.assume(_compToInvest >= 1e18);
+        vm.assume(_compToInvest <= COMP_INVESTED_AMOUNT);
+
         // assert: initial state of the trust setup
         assertEq(COMP.balanceOf(address(trustSetup)), 0);
         assertEq(trustSetup.GAUGE().balanceOf(address(trustSetup)), 0);
@@ -33,7 +37,7 @@ contract TrustSetupTest is BaseFixture {
         uint256 compBalanceBeforeProposal = COMP.balanceOf(address(trustSetup.COMPTROLLER()));
 
         // propose: grant comp transfer into trust setup and invest
-        uint256 proposalId = grantCompAndInvest();
+        uint256 proposalId = grantCompAndInvest(_compToInvest);
 
         // vote in favour of proposalId
         voteForProposal(proposalId);
@@ -50,31 +54,50 @@ contract TrustSetupTest is BaseFixture {
         vm.clearMockedCalls();
 
         // assert: states expected changes
-        assertGt(trustSetup.GAUGE().balanceOf(address(trustSetup)), COMP_INVESTED_AMOUNT);
-        assertEq(COMP.balanceOf(address(trustSetup.COMPTROLLER())), compBalanceBeforeProposal - COMP_INVESTED_AMOUNT);
+        assertGt(trustSetup.GAUGE().balanceOf(address(trustSetup)), _compToInvest);
+        assertEq(COMP.balanceOf(address(trustSetup.COMPTROLLER())), compBalanceBeforeProposal - _compToInvest);
     }
 
     function testCommenceDivestment_revert() public {
+        uint256 bptTotalSupply = trustSetup.GAUGE().totalSupply();
+
         // no comp timelock caller
         address caller = address(4345454);
         vm.prank(caller);
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
-        trustSetup.commenceDivestment();
+        trustSetup.commenceDivestment(50);
 
         // no gauge balance
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NothingStakedInGauge.selector));
-        trustSetup.commenceDivestment();
+        trustSetup.commenceDivestment(50);
+
+        // divesting more than gauge balance
+        deal(address(trustSetup.GAUGE()), address(trustSetup), 500e18);
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.DivestmentGreaterThanBalance.selector));
+        trustSetup.commenceDivestment(501e18);
+
+        // more than 30% BPT supply
+        deal(address(trustSetup.GAUGE()), address(trustSetup), bptTotalSupply / 3);
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.DisproportionateExit.selector));
+        trustSetup.commenceDivestment(bptTotalSupply / 3);
     }
 
-    function testCommenceDivestment() public {
-        deal(address(trustSetup.GAUGE()), address(trustSetup), 500e18);
+    function testCommenceDivestment(uint256 _bptBalance) public {
+        vm.assume(_bptBalance >= 1e18);
+        // it should not be more than 30% of current BPT supply as per Balancer v2 invariants
+        // BAL#306: https://docs.balancer.fi/reference/contracts/error-codes.html#pools
+        // fuzzing _bptBalance value with up to 29.4% of the BPT supply
+        vm.assume(_bptBalance < trustSetup.GAUGE().totalSupply() * 10_000 / 34_000);
+        deal(address(trustSetup.GAUGE()), address(trustSetup), _bptBalance);
 
         // assert: initial state of the trust setup. nothing queued
         assertFalse(trustSetup.divestmentQueued());
 
         // propose: commence divestment
-        uint256 proposalId = queueCommenceDivestment();
+        uint256 proposalId = queueCommenceDivestment(_bptBalance);
 
         // vote in favour of proposalId
         voteForProposal(proposalId);
@@ -126,7 +149,7 @@ contract TrustSetupTest is BaseFixture {
         assertFalse(trustSetup.divestmentQueued());
 
         // propose: commence divestment
-        uint256 proposalId = queueCommenceDivestment();
+        uint256 proposalId = queueCommenceDivestment(500e18);
 
         // vote in favour of proposalId
         voteForProposal(proposalId);

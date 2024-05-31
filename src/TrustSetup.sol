@@ -40,6 +40,7 @@ contract TrustSetup {
     IWeightedPool public constant BPT = IWeightedPool(0x56bc9d9987edeC2fC6e1990e27AF4A0987b53096);
     uint256 constant GOLD_COMP_NORMALIZED_WEIGHT = 990000000000000000;
     uint256 constant WETH_NORMALIZED_WEIGHT = 10000000000000000;
+    uint256 constant BPT_INVARIANT_RATIO = 300000000000000000;
 
     IGauge public constant GAUGE = IGauge(0x4DcfB8105C663F199c1a640549FC3579db4E3e65);
 
@@ -65,6 +66,8 @@ contract TrustSetup {
 
     error NotCompBalance();
     error NothingStakedInGauge();
+    error DivestmentGreaterThanBalance();
+    error DisproportionateExit();
     error NoDivestmentQueued();
 
     error NegativeOracleAnswer();
@@ -120,23 +123,29 @@ contract TrustSetup {
         emit CompInvested(compBalance, bptBalance, block.timestamp);
     }
 
-    /// @notice Divest all positions from Balancer and queue withdrawal from GOLDCOMP
-    function commenceDivestment() external onlyCompTimelock {
+    /// @notice Divest partial or all positions from Balancer and queue withdrawal into GOLDCOMP
+    /// @dev Given the constrainst determined by the Balancer V2 pool, at once no more than 30% of the supply should be withdrawn
+    /// @param _bptToDivest Amount of BPT to divest from the strategy. If null assumes full divestment
+    function commenceDivestment(uint256 _bptToDivest) external onlyCompTimelock {
+        // strict input checks since transaction is going via Compound's Timelock
         uint256 bptStaked = GAUGE.balanceOf(address(this));
         if (bptStaked == 0) revert NothingStakedInGauge();
+        if (_bptToDivest > bptStaked) revert DivestmentGreaterThanBalance();
+
+        // avoids BAL#306: otherwise could bricked the divestment process
+        uint256 invariantRatio = bptStaked * BASE_PRECISION / BPT.totalSupply();
+        if (invariantRatio >= BPT_INVARIANT_RATIO) revert DisproportionateExit();
 
         // 1:1 ratio
-        GAUGE.withdraw(bptStaked);
+        GAUGE.withdraw(_bptToDivest);
 
-        // @audit mind BAL#306 error code, i.e: "Disproportionate exit unbalanced the pool too much"
-        // require: non-proportional exit can cause the pool invariant being less than 0.7e18
-        _withdrawFromBalancerPool(bptStaked);
+        _withdrawFromBalancerPool(_bptToDivest);
         uint256 goldCompBalance = GOLD_COMP.balanceOf(address(this));
 
         GOLD_COMP.queueWithdraw(goldCompBalance);
 
         divestmentQueued = true;
-        emit CompDivestedQueue(goldCompBalance, bptStaked, block.timestamp);
+        emit CompDivestedQueue(goldCompBalance, _bptToDivest, block.timestamp);
     }
 
     /// @notice Completes the divestment by withdrawing from GOLDCOMP vault and sending COMP to the comptroller
