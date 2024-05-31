@@ -294,9 +294,9 @@ contract TrustSetup {
     /// @dev Explanation at: https://docs.balancer.fi/concepts/advanced/valuing-bpt/valuing-bpt.html#weighted-pools
     /// @return The ratio of COMP/BPT
     function _ratioCompBpt() internal returns (uint256) {
-        // 1:1 ratio (COMP:GOLDCOMP)
+        // 1:1 ratio (COMP:GOLDCOMP). COMP / USD oracle has 8 decimals
         uint256 compToUsd = _oracleHelper(ORACLE_COMP_USD, ORACLE_COMP_USD_HEART_BEAT);
-        // 1:1 ratio (ETH:WETH)
+        // 1:1 ratio (ETH:WETH). ETH / USD oracle has 8 decimals
         uint256 ethToUsd = _oracleHelper(ORACLE_ETH_USD, ORACLE_ETH_USD_HEART_BEAT);
 
         uint256 invariantDivSupply = (BPT.getLastPostJoinExitInvariant() * BASE_PRECISION) / BPT.totalSupply();
