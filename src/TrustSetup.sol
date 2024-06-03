@@ -22,10 +22,13 @@ contract TrustSetup {
 
     ///////////////////////////// Constants ///////////////////////////////
     uint256 constant ORACLE_DECIMALS_BASE = 1e8;
+    uint256 constant BASE_ORACLE_DIFF_PRECISION = 1e10;
+
     uint256 constant BASE_PRECISION = 1e18;
     uint256 constant BASE_PRECISION_TWOFOLD = 1e36;
-    uint256 constant BASE_ORACLE_DIFF_PRECISION = 1e10;
-    uint256 constant SLIPPAGE_PRECISION = 10000;
+
+    uint256 constant MIN_SLIPPAGE_VALUE = 9_100;
+    uint256 constant SLIPPAGE_PRECISION = 10_000;
 
     address public constant GOLD_MSIG = 0x941dcEA21101A385b979286CC6D6A9Bf435EB1C2;
     address public constant COMPOUND_TIMELOCK = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925;
@@ -60,6 +63,8 @@ contract TrustSetup {
     /////////////////////////////// Storage ////////////////////////////////
     bool public divestmentQueued;
 
+    uint256 public slippageMinOut;
+
     /////////////////////////////// Errors ////////////////////////////////
     error NotCompTimelock();
     error NotGoldenBoyzMultisig();
@@ -69,6 +74,8 @@ contract TrustSetup {
     error DivestmentGreaterThanBalance();
     error DisproportionateExit();
     error NoDivestmentQueued();
+
+    error MisconfiguredSlippage();
 
     error NegativeOracleAnswer();
     error StaleOracle();
@@ -102,6 +109,10 @@ contract TrustSetup {
         GOLD_COMP.approve(address(BALANCER_VAULT), type(uint256).max);
 
         BPT.approve(address(GAUGE), type(uint256).max);
+
+        // default value at deployment, it can be modified by the Compound Timelock
+        // to avoid funds being frozen on periods on high volatility
+        slippageMinOut = 9_400;
     }
 
     /////////////////////////////// External methods ////////////////////////////////
@@ -161,6 +172,15 @@ contract TrustSetup {
 
         divestmentQueued = false;
         emit CompDivestedCompleted(compBalance, block.timestamp);
+    }
+
+    /// @notice Sets the slippage for the Balancer pool operations
+    /// @param _slippageMinOut The new slippage margin
+    function setSlippageMinOut(uint256 _slippageMinOut) external onlyCompTimelock {
+        if (_slippageMinOut > SLIPPAGE_PRECISION || _slippageMinOut < MIN_SLIPPAGE_VALUE) {
+            revert MisconfiguredSlippage();
+        }
+        slippageMinOut = _slippageMinOut;
     }
 
     /// @notice Swaps gauge rewards for WETH. Only callable by the GoldenBoyz multisig, primarily intended to safeguard the minimum amount expected
@@ -326,7 +346,7 @@ contract TrustSetup {
 
         // use of fixed point arithmetic and the powWad operation introduces a loss of precision, causing productSequenceTwo to be slightly higher than its theoretical value.
         // to mitigate this, we apply a more aggressive slippage margin, ensuring the minimum expected output amount is protected
-        return minBpt * 9_400 / SLIPPAGE_PRECISION;
+        return minBpt * slippageMinOut / SLIPPAGE_PRECISION;
     }
 
     /// @param _bptBalance The amount of BPT to be converted into minimum COMP out expected
@@ -337,6 +357,6 @@ contract TrustSetup {
 
         // use of fixed point arithmetic and the powWad operation introduces a loss of precision, causing productSequenceTwo to be slightly higher than its theoretical value.
         // to mitigate this, we apply a more aggressive slippage margin, ensuring the minimum expected output amount is protected
-        return minComp * 9_400 / SLIPPAGE_PRECISION;
+        return minComp * slippageMinOut / SLIPPAGE_PRECISION;
     }
 }

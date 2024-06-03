@@ -306,4 +306,29 @@ contract TrustSetupTest is BaseFixture {
         assertEq(WETH.balanceOf(address(trustSetup)), 0);
         assertEq(COMP.balanceOf(trustSetup.COMPTROLLER()), compBalanceInCompotroller + _compAmount);
     }
+
+    function testSetSlippageMinOut_revert() public {
+        // no comp timelock caller
+        address caller = address(4345454);
+        vm.prank(caller);
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
+        trustSetup.setSlippageMinOut(3243);
+
+        // value below MIN_SLIPPAGE_VALUE
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.MisconfiguredSlippage.selector));
+        trustSetup.setSlippageMinOut(8500);
+
+        // value above SLIPPAGE_PRECISION
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.MisconfiguredSlippage.selector));
+        trustSetup.setSlippageMinOut(11000);
+    }
+
+    function testSetSlippageMinOut() public {
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        trustSetup.setSlippageMinOut(9500);
+
+        assertEq(trustSetup.slippageMinOut(), 9500);
+    }
 }
