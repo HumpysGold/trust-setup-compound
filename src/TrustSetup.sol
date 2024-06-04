@@ -144,7 +144,7 @@ contract TrustSetup {
         if (_bptToDivest > bptStaked) revert DivestmentGreaterThanBalance();
 
         // avoids BAL#306: otherwise could bricked the divestment process
-        uint256 invariantRatio = bptStaked * BASE_PRECISION / BPT.totalSupply();
+        uint256 invariantRatio = _bptToDivest * BASE_PRECISION / BPT.totalSupply();
         if (invariantRatio >= BPT_INVARIANT_RATIO) revert DisproportionateExit();
 
         // 1:1 ratio
