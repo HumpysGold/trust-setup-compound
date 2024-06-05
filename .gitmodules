@@ -7,3 +7,6 @@
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/Vectorized/solady.git
+[submodule "lib/chimera"]
+	path = lib/chimera
+	url = https://github.com/recon-fuzz/chimera
