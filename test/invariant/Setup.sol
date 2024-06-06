@@ -11,6 +11,7 @@ import "../../src/TrustSetup.sol";
 import {IBalancerVault} from "../../src/interfaces/IBalancerVault.sol";
 import {IWeightedPool} from "../../src/interfaces/IWeightedPool.sol";
 import {IGauge} from "../../src/interfaces/IGauge.sol";
+import {IGoldComp} from "../../src/interfaces/IGoldComp.sol";
 
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
@@ -31,8 +32,11 @@ abstract contract Setup is BaseSetup {
     IERC20 constant COMP = IERC20(0xc00e94Cb662C3520282E6f5717214004A7f26888);
     IERC20 constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
+    // GoldComp
+    IGoldComp public constant GOLD_COMP = IGoldComp(0x939CED8875d1Cd75D8b9aca439e6526e9A822A48);
+
     function setup() internal virtual override {
-      vm.warp(1717610853);
+      vm.warp(1717658389);
 
       vault = IBalancerVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
       pool = IWeightedPool(0x56bc9d9987edeC2fC6e1990e27AF4A0987b53096);
@@ -46,6 +50,10 @@ abstract contract Setup is BaseSetup {
       // Give the strat some COMP from Comptroller
       vm.prank(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
       COMP.transfer(address(trustSetup), 500_000e18);
+
+      // Setup goldComp
+      COMP.approve(address(GOLD_COMP), COMP.balanceOf(address(this)) / 2);
+      GOLD_COMP.deposit(COMP.balanceOf(address(this)) / 2);
     }
 
     // Give the tokens that we need
@@ -63,5 +71,14 @@ abstract contract Setup is BaseSetup {
         uint256 balToSend = token.balanceOf(whale);
         vm.prank(whale);
         token.transfer(to, balToSend);
+    }
+
+    /// @return The pool assets in the 99goldCOMP-1WETH Balancer pool
+    function _poolAssets() internal pure returns (address[] memory) {
+        address[] memory poolAssets = new address[](2);
+        poolAssets[0] = address(GOLD_COMP);
+        poolAssets[1] = address(WETH);
+
+        return poolAssets;
     }
 }

@@ -2,11 +2,13 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+evm_version = "shanghai"
 remappings = [
     'forge-std/=lib/forge-std/src/',
     'openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/',
-    'solady/=lib/solady/src/utils/'
+    'solady/=lib/solady/src/utils/',
+    '@chimera/=lib/chimera/src/'
 ]
 
 [rpc_endpoints]
-mainnet = "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+mainnet = "https://eth-mainnet.g.alchemy.com/v2/kOTtPAuW53tAOR-uX27jHdhkLMh2JwcV"
