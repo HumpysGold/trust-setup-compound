@@ -36,7 +36,7 @@ abstract contract Setup is BaseSetup {
     IGoldComp public constant GOLD_COMP = IGoldComp(0x939CED8875d1Cd75D8b9aca439e6526e9A822A48);
 
     function setup() internal virtual override {
-      vm.warp(1717658389);
+      vm.warp(1717746731);
 
       vault = IBalancerVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
       pool = IWeightedPool(0x56bc9d9987edeC2fC6e1990e27AF4A0987b53096);
@@ -52,8 +52,8 @@ abstract contract Setup is BaseSetup {
       COMP.transfer(address(trustSetup), 500_000e18);
 
       // Setup goldComp
-      COMP.approve(address(GOLD_COMP), COMP.balanceOf(address(this)) / 2);
-      GOLD_COMP.deposit(COMP.balanceOf(address(this)) / 2);
+      COMP.approve(address(GOLD_COMP), COMP.balanceOf(address(this)) * 8 / 10);
+      GOLD_COMP.deposit(COMP.balanceOf(address(this)) * 8 / 10);
     }
 
     // Give the tokens that we need

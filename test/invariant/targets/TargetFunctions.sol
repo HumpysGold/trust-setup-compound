@@ -19,6 +19,7 @@ abstract contract TargetFunctions is BaseTargetFunctions, Properties, BeforeAfte
 
     event DebugDust(string, uint256);
 
+    // Enter pool
     // Note Uses the formula
     function trustSetup_invest() public {
       require(COMP.balanceOf(address(trustSetup)) > 0, "Only valid if contract can invest funds");
@@ -55,12 +56,16 @@ abstract contract TargetFunctions is BaseTargetFunctions, Properties, BeforeAfte
       // Prank the timelock
       vm.prank(compoundTimelock);
 
+      // Same check as for `invest`, but never triggers
+      // TODO refine assertion here
       try trustSetup.commenceDivestment(_bptToDivest) {} catch {
         t(pool.totalSupply() == IActualSupply(address(pool)).getActualSupply(), "Divest failed");
       }
 
     }
 
+    // Complete divestment
+    // @audit Take care with the block timestamp resets
     function trustSetup_completeDivestment() public {
       uint256 cachedTimestamp = block.timestamp;
 
