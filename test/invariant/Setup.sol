@@ -28,12 +28,16 @@ abstract contract Setup is BaseSetup {
     address internal goldMultisig = 0x941dcEA21101A385b979286CC6D6A9Bf435EB1C2;
 
     // Tokens addresses
-    IERC20 constant GOLD = IERC20(0x9DeB0fc809955b79c85e82918E8586d3b7d2695a);
-    IERC20 constant COMP = IERC20(0xc00e94Cb662C3520282E6f5717214004A7f26888);
-    IERC20 constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC20 internal constant GOLD = IERC20(0x9DeB0fc809955b79c85e82918E8586d3b7d2695a);
+    IERC20 internal constant COMP = IERC20(0xc00e94Cb662C3520282E6f5717214004A7f26888);
+    IERC20 internal constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     // GoldComp
-    IGoldComp public constant GOLD_COMP = IGoldComp(0x939CED8875d1Cd75D8b9aca439e6526e9A822A48);
+    IGoldComp internal constant GOLD_COMP = IGoldComp(0x939CED8875d1Cd75D8b9aca439e6526e9A822A48);
+
+    // Limits
+    uint256 internal compLimit = 90_000e18;
+    uint256 internal compTracker;
 
     function setup() internal virtual override {
       vm.warp(1717746731);
@@ -45,11 +49,7 @@ abstract contract Setup is BaseSetup {
       trustSetup = new TrustSetup();
 
       // Setup the needed tokens
-      _setUpTokens();
-
-      // Give the strat some COMP from Comptroller
-      vm.prank(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
-      COMP.transfer(address(trustSetup), 500_000e18);
+      _setUpTokens(); 
 
       // Setup goldComp
       COMP.approve(address(GOLD_COMP), COMP.balanceOf(address(this)) * 8 / 10);
@@ -58,12 +58,25 @@ abstract contract Setup is BaseSetup {
 
     // Give the tokens that we need
     function _setUpTokens() internal {
+      // TODO get GOLDCOMP whale too!
+
       // COMP whale: 0xf7Ba2631166e4f7A22a91Def302d873106f0beD8
+      // TODO Change the whales!
       _whaleSend(COMP, 0xf7Ba2631166e4f7A22a91Def302d873106f0beD8, address(this));
 
       // WETH whale: 0x57757E3D981446D585Af0D9Ae4d7DF6D64647806
       _whaleSend(WETH, 0x57757E3D981446D585Af0D9Ae4d7DF6D64647806, address(this));
+    }
 
+    // Convenience function to mock COMP provision to the strategy
+    // @audit Capped at 90k COMP
+    function _supplyToInvest(uint256 _amount) internal {
+      require(compTracker + _amount <= compLimit);
+
+      // Give the strat some COMP from Comptroller
+      vm.prank(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
+      COMP.transfer(address(trustSetup), _amount);
+      compTracker += _amount;
     }
 
     // Convenience function for tranferring the balance of an account to another address
