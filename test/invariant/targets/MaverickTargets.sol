@@ -5,6 +5,8 @@ pragma solidity ^0.8.23;
 import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
 import {BeforeAfter} from "../BeforeAfter.sol";
 import {Properties} from "../Properties.sol";
+import {RevertHelper} from "../RevertHelper.sol";
+import {RevertHelper} from "../RevertHelper.sol";
 import {vm} from "@chimera/Hevm.sol";
 
 import {IAsset} from "../../../src/interfaces/IAsset.sol";

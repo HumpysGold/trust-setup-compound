@@ -5,6 +5,7 @@ pragma solidity ^0.8.23;
 import {BaseTargetFunctions} from "@chimera/BaseTargetFunctions.sol";
 import {BeforeAfter} from "../BeforeAfter.sol";
 import {Properties} from "../Properties.sol";
+import {RevertHelper} from "../RevertHelper.sol";
 import {vm} from "@chimera/Hevm.sol";
 
 import {IAsset} from "../../../src/interfaces/IAsset.sol";
@@ -15,7 +16,7 @@ interface IActualSupply {
   function getActualSupply() external returns (uint256);
 }
 
-abstract contract TrustInvestTargets is BaseTargetFunctions, Properties, BeforeAfter {
+abstract contract TrustInvestTargets is BaseTargetFunctions, Properties, BeforeAfter, RevertHelper {
 
     event DebugDust(string, uint256);
 
@@ -28,7 +29,11 @@ abstract contract TrustInvestTargets is BaseTargetFunctions, Properties, BeforeA
       vm.prank(compoundTimelock);
 
       // If there are enough funds in the strategy invest should never fail
-      try trustSetup.invest() {} catch {
+      try trustSetup.invest() {} catch (bytes memory errorData){
+        assertRevertReasonNotEqual(errorData, "Panic(17)"); // No overflow
+        assertRevertReasonNotEqual(errorData, "Panic(18)"); // No division by 0
+
+        
         // We have a hunch that `totalSupply` and `getActualSupply` will diverge and cause an overstatement of `minAmounts` on pool join
         // @audit the hunch was confirmed
         t(pool.totalSupply() == IActualSupply(address(pool)).getActualSupply(), "Invest failed and supply equality violated");
@@ -58,9 +63,12 @@ abstract contract TrustInvestTargets is BaseTargetFunctions, Properties, BeforeA
 
       // Same check as for `invest`, but never triggers
       // TODO refine assertion here
-      try trustSetup.commenceDivestment(_bptToDivest) {} catch {
+      try trustSetup.commenceDivestment(_bptToDivest) {} catch (bytes memory errorData){
+        assertRevertReasonNotEqual(errorData, "Panic(17)"); // No overflow
+        assertRevertReasonNotEqual(errorData, "Panic(18)"); // No division by 0
         t(pool.totalSupply() == IActualSupply(address(pool)).getActualSupply(), "Divest failed");
       }
+
     }
 
     // Complete divestment
