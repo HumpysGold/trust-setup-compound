@@ -67,7 +67,7 @@ abstract contract RevertHelper is Asserts {
     }
 
     // NOTE: Canary just check them once then delete these
-
+    /* Checked: OK - Loki
     function check_the_overflow() public {
       try this.testTheOverflow() {
       } catch (bytes memory errorData){
@@ -80,5 +80,5 @@ abstract contract RevertHelper is Asserts {
         assertRevertReasonNotEqual(errorData, "Panic(18)");
       }
     }
-
+  */
 }
