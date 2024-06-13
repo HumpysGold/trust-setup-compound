@@ -13,14 +13,13 @@ import {IAsset} from "../../../src/interfaces/IAsset.sol";
 import {IBalancerVault} from "../../../src/interfaces/IBalancerVault.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-interface IActualSupply {
-  function getActualSupply() external returns (uint256);
-}
-
+    // Maverick functions
+    // These are functions that may not be related to the strat contract itself but alter state in integrated contracts.
+    // Useful in fuzzing how other actors may change the pool and if such behaviour can trigger reverts
 abstract contract MaverickTargets is BaseTargetFunctions, Properties, BeforeAfter {
 
-    // Maverick functions
-    // These are functions that may not be related to the strat contract itself but alter state in integrated contracts
+    // @dev Simple swap of either one of the two acceptable tokens
+    // Useful for inspectiong the impact of accrued fees
     function balancer_swap(uint256 directionality, uint256 amountIn) public {
       address tokenIn;
       address tokenOut;
@@ -56,6 +55,8 @@ abstract contract MaverickTargets is BaseTargetFunctions, Properties, BeforeAfte
     );
     }
 
+    // @dev Allows a random single sided supply into the vault
+    // Does not care about slippage
     function balancer_supply(bool assetIn, uint256 amountIn) public {
         address tokenIn;
         uint256[] memory amountsIn = new uint256[](2);
@@ -88,7 +89,8 @@ abstract contract MaverickTargets is BaseTargetFunctions, Properties, BeforeAfte
       );
     }
 
-    function balancer_supply_equal(bool assetIn, uint256 amountIn) public {
+    // @dev Allows an 99:1 supply into the vault
+    function balancer_supply_equal(uint256 amountIn) public {
         // single sided deposit
         uint256 amountInGold = between(amountIn, 1 ether, GOLD_COMP.balanceOf(address(this)));
         uint256 amountInWeth = between(amountIn, 1 ether, GOLD_COMP.balanceOf(address(this))) / 99;
@@ -115,6 +117,7 @@ abstract contract MaverickTargets is BaseTargetFunctions, Properties, BeforeAfte
       );
     }
 
+    // @dev Allows a single sided withdraw
     function balancer_withdraw(bool assetOut, uint256 _bptBalance) public {
         uint256[] memory minAmountsOut = new uint256[](2);
 
@@ -141,11 +144,4 @@ abstract contract MaverickTargets is BaseTargetFunctions, Properties, BeforeAfte
         );
     }
 
-    // Some assertions to detect hunches
-    /**
-    function supply_equality() public {
-      t(pool.totalSupply() == IActualSupply(address(pool)).getActualSupply(), "Flag: divergent supply");
-    }
-
-    */
 }

@@ -11,10 +11,7 @@ import {IAsset} from "../../../src/interfaces/IAsset.sol";
 import {IBalancerVault} from "../../../src/interfaces/IBalancerVault.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-interface IActualSupply {
-  function getActualSupply() external returns (uint256);
-}
-
+// These are targets that are admin-related
 abstract contract TrustAdminTargets is BaseTargetFunctions, Properties, BeforeAfter {
 
     // @audit Skipped
@@ -22,22 +19,9 @@ abstract contract TrustAdminTargets is BaseTargetFunctions, Properties, BeforeAf
     function trustSetup_setSlippageMinOut(uint256 _slippageMinOut) public {
       trustSetup.setSlippageMinOut(_slippageMinOut);
     }
-
-    function trustSetup_swapRewardsForWeth(uint256 _minWethOut) public {
-      trustSetup.swapRewardsForWeth(_minWethOut);
-    }
-
-    function trustSetup_buyWethWithComp(uint256 _compAmount) public {
-      trustSetup.buyWethWithComp(_compAmount);
-    }
-
-    function trustSetup_getCompToWethRatio(uint256 _compAmount) public {
-      trustSetup.getCompToWethRatio(_compAmount);
-    }
-
     */
 
-    // Separating out the supply of COMP to the Strategy
+    // Allows mocking the intermittent the supply of COMP to the Strategy
     // @audit Clamped to 90_000 COMP in `Setup`
     function supply_funds(uint256 _amount) public {
       uint256 startingComp = COMP.balanceOf(address(trustSetup));
@@ -48,8 +32,4 @@ abstract contract TrustAdminTargets is BaseTargetFunctions, Properties, BeforeAf
       t(COMP.balanceOf(address(trustSetup)) == startingComp + _amount, "Flag Supply");
     }
 
-    // Some assertions to detect hunches
-    function supply_equality() public {
-      t(pool.totalSupply() == IActualSupply(address(pool)).getActualSupply(), "Flag: divergent supply");
-    }
 }

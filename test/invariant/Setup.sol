@@ -15,6 +15,22 @@ import {IGoldComp} from "../../src/interfaces/IGoldComp.sol";
 
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
+/**
+      This sets up the forked fuzzing for the TrustSetup fuzzing suite.
+      It uses Echidna, in combination with a **fork at a specific block**, to test the behaviour of the contract.
+
+      Note that the block target is set in the anvil command
+
+      Setup Overview:
+
+  1.  We are on a forked block, we set the time equal to the target block (time-sensitive oracles)
+  2.  Connect Vault
+  3.  Connect Balancer Pool (goldComp:WETH)
+  4.  Connect Gauge
+  5.  Deploy TrustSetup contract (the target of our fuzzing campaign)
+  6.  Setup the tokens (fetch from whales and convert to goldComp)
+
+ */
 abstract contract Setup is BaseSetup {
 
     TrustSetup trustSetup;
@@ -57,11 +73,10 @@ abstract contract Setup is BaseSetup {
     }
 
     // Give the tokens that we need
+    // Note: Make sure to check the on-chain balances regularly to ensure they are as expected
+    // (sometimes a whale becomes a guppy and this effects the tokens transferred)
     function _setUpTokens() internal {
-      // TODO get GOLDCOMP whale too!
-
       // COMP whale: 0xf7Ba2631166e4f7A22a91Def302d873106f0beD8
-      // TODO Change the whales!
       _whaleSend(COMP, 0xf7Ba2631166e4f7A22a91Def302d873106f0beD8, address(this));
 
       // WETH whale: 0x57757E3D981446D585Af0D9Ae4d7DF6D64647806
