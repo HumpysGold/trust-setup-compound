@@ -13,6 +13,7 @@ interface IActualSupply {
   function getActualSupply() external returns (uint256);
 }
 
+/// @notice Convenience contract to quickly convert test broken properties 
 contract CryticToFoundry is 
     Test,
     MaverickTargets,
@@ -44,12 +45,16 @@ contract CryticToFoundry is
     }
 
     // Run with: `forge test --match-test test_investFail -vvvv`
-    function test_investFail() public {
+    function test_investFail_PoC() public {
+        supply_funds(37218690640251059336851577914070236679517717381574142764778149591600162043877);
+        supply_funds(115792089237316195423570985008687907853269984665640564039457584007913129639935);
+
         balancer_swap(0,10457393105336675900);
 
         console2.log("Total Supply: ", pool.totalSupply());
         console2.log("Actual Supply: ", IActualSupply(address(pool)).getActualSupply());
         console2.log("Delta: ", IActualSupply(address(pool)).getActualSupply() - pool.totalSupply());
+        console2.log("Invariant: ", pool.getInvariant());
         console2.log("");
 
         trustSetup_invest();
@@ -58,7 +63,8 @@ contract CryticToFoundry is
     }
 
     function test_investFail_Control() public {
-
+        supply_funds(37218690640251059336851577914070236679517717381574142764778149591600162043877);
+        supply_funds(115792089237316195423570985008687907853269984665640564039457584007913129639935);
         console2.log("Total Supply: ", pool.totalSupply());
         console2.log("Actual Supply: ", IActualSupply(address(pool)).getActualSupply());
         console2.log("Delta: ", IActualSupply(address(pool)).getActualSupply() - pool.totalSupply());
@@ -67,34 +73,50 @@ contract CryticToFoundry is
         trustSetup_invest();
     }
 
-    function test_products() public {
-        uint256 productSequenceOne = uint256(
-            FixedPointMathLib.powWad(
-                int256((uint256(5448476635) * BASE_PRECISION / GOLD_COMP_NORMALIZED_WEIGHT) * BASE_ORACLE_DIFF_PRECISION),
-                int256(GOLD_COMP_NORMALIZED_WEIGHT)
-            )
-        );
-/*
-        uint256 productSequenceTwo = uint256(
-            FixedPointMathLib.powWad(
-                int256((ethToUsd * BASE_PRECISION / WETH_NORMALIZED_WEIGHT) * BASE_ORACLE_DIFF_PRECISION),
-                int256(WETH_NORMALIZED_WEIGHT)
-            )
-        );
-*/
-        int256 productSequenceOneInt = 
-            FixedPointMathLib.powWad(
-                int256((uint256(5448476635) * BASE_PRECISION / GOLD_COMP_NORMALIZED_WEIGHT) * BASE_ORACLE_DIFF_PRECISION),
-                int256(GOLD_COMP_NORMALIZED_WEIGHT)
-            );
-/*
-        int256 productSequenceTwoInt =
-            FixedPointMathLib.powWad(
-                int256((ethToUsd * BASE_PRECISION / WETH_NORMALIZED_WEIGHT) * BASE_ORACLE_DIFF_PRECISION),
-                int256(WETH_NORMALIZED_WEIGHT)
-        );
-*/
-        console2.log("Uint256: ", productSequenceOne);
-        console2.log("Int256:  ", productSequenceOneInt);
+    // To test the real amount of BPT received we check the balance of the strategy in the `gauge`
+    // Run with `forge test --match-test test_TVL_comparison -vvv`
+    // Note: you may need to set the minBpt expected in the `_depositInBalancerPool` to 0 to allow the test to complete
+    function test_TVL_comparison() public {
+        uint256[] memory tvls = new uint256[](5);
+        tvls[0] = 0;
+        tvls[1] = 1_000 ether;
+        tvls[2] = 5_000 ether;
+        tvls[3] = 10_000 ether;
+        tvls[4] = 20_000 ether;
+
+        uint256 snap = vm.snapshot();
+
+        for (uint256 i; i < tvls.length; ++i) {
+            console2.log("For extra TVL of: ", tvls[i]);
+            balancer_supply_equal(tvls[i]);
+            test_optimalInvest_Control();
+            console2.log("");
+
+            // we revert to previous state to redo the next tvl
+            vm.revertTo(snap);
+        }
+
+    }
+
+    // Run both PoC and Control with `forge test --match-test test_optimalInvest_PoC -vvv
+    function test_optimalInvest_PoC() public returns (uint256 bptOut) {
+        supply_funds(10_000 ether);
+        balancer_supply_equal(20_000 ether);
+        trustSetup_invest();
+
+        bptOut = gauge.balanceOf(address(trustSetup));
+        console2.log("Max BPT for strat: ", bptOut);
+        return bptOut;
+    }
+
+    function test_optimalInvest_Control() public returns (uint256 bptOut) {
+        supply_funds(10_000 ether);
+
+        trustSetup_invest();
+
+        bptOut = gauge.balanceOf(address(trustSetup));
+        console2.log("BPT received: ", bptOut);
+
+        return bptOut;
     }
 }
