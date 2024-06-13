@@ -58,18 +58,47 @@ abstract contract MaverickTargets is BaseTargetFunctions, Properties, BeforeAfte
 
     function balancer_supply(bool assetIn, uint256 amountIn) public {
         address tokenIn;
+        uint256[] memory amountsIn = new uint256[](2);
 
         if (assetIn) {
           tokenIn = address(GOLD_COMP);
+          amountIn = between(amountIn, 10 ether, IERC20(tokenIn).balanceOf(address(this)));
+          amountsIn[0] = amountIn;
         } else {
           tokenIn = address(WETH);
+          amountIn = between(amountIn, 1 ether, IERC20(tokenIn).balanceOf(address(this)));
+          amountsIn[1] = amountIn;
         }
+
         // single sided deposit
-        amountIn = between(amountIn, 0, IERC20(tokenIn).balanceOf(address(this)));
         IERC20(tokenIn).approve(address(vault), amountIn);
 
+        vault.joinPool(
+          trustSetup.GOLD_COMP_WETH_POOL_ID(),
+          address(this),
+          address(this),
+          IBalancerVault.JoinPoolRequest({
+              assets: _poolAssets(),
+              maxAmountsIn: amountsIn,
+              userData: abi.encode(
+                  IBalancerVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT, amountsIn, 0
+              ),
+              fromInternalBalance: false
+          })
+      );
+    }
+
+    function balancer_supply_equal(bool assetIn, uint256 amountIn) public {
+        // single sided deposit
+        uint256 amountInGold = between(amountIn, 1 ether, GOLD_COMP.balanceOf(address(this)));
+        uint256 amountInWeth = between(amountIn, 1 ether, GOLD_COMP.balanceOf(address(this))) / 99;
+
+        GOLD_COMP.approve(address(vault), amountInGold);
+        WETH.approve(address(vault), amountInWeth);
+
         uint256[] memory amountsIn = new uint256[](2);
-        amountsIn[0] = amountIn;
+        amountsIn[0] = amountInGold;
+        amountsIn[1] = amountInWeth;
 
         vault.joinPool(
           trustSetup.GOLD_COMP_WETH_POOL_ID(),
