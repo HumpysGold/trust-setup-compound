@@ -77,19 +77,26 @@ contract CryticToFoundry is
     // Run with `forge test --match-test test_TVL_comparison -vvv`
     // Note: you may need to set the minBpt expected in the `_depositInBalancerPool` to 0 to allow the test to complete
     function test_TVL_comparison() public {
-        uint256[] memory tvls = new uint256[](5);
+        uint256[] memory tvls = new uint256[](7);
         tvls[0] = 0;
-        tvls[1] = 1_000 ether;
-        tvls[2] = 5_000 ether;
-        tvls[3] = 10_000 ether;
-        tvls[4] = 20_000 ether;
+        tvls[1] = 1;
+        tvls[2] = 2;
+        tvls[3] = 5;
+        tvls[4] = 10;
+        tvls[5] = 15;
+        tvls[6] = 20;
 
         uint256 snap = vm.snapshot();
 
         for (uint256 i; i < tvls.length; ++i) {
-            console2.log("For extra TVL of: ", tvls[i]);
-            balancer_supply_equal(tvls[i]);
+            console2.log("Factor of TVL added on to base: ", tvls[i]);
+            (uint256 goldAdded, uint256 wethAdded) = balancer_supply_equal(tvls[i]);
+            console2.log("Deposited Gold:                 ", goldAdded);
+            console2.log("Deposited Weth:                 ", wethAdded);
             test_optimalInvest_Control();
+            (, uint256[] memory balancesNew,) = vault.getPoolTokens(0x56bc9d9987edec2fc6e1990e27af4a0987b53096000200000000000000000686);
+            console2.log("Pool balance gold:              ", balancesNew[0]);
+            console2.log("Pool balance weth:              ", balancesNew[1]);
             console2.log("");
 
             // we revert to previous state to redo the next tvl
@@ -115,7 +122,7 @@ contract CryticToFoundry is
         trustSetup_invest();
 
         bptOut = gauge.balanceOf(address(trustSetup));
-        console2.log("BPT received: ", bptOut);
+        console2.log("BPT received:                   ", bptOut);
 
         return bptOut;
     }

@@ -89,11 +89,16 @@ abstract contract MaverickTargets is BaseTargetFunctions, Properties, BeforeAfte
       );
     }
 
-    // @dev Allows an 99:1 supply into the vault
-    function balancer_supply_equal(uint256 amountIn) public {
-        // single sided deposit
-        uint256 amountInGold = between(amountIn, 1 ether, GOLD_COMP.balanceOf(address(this)));
-        uint256 amountInWeth = between(amountIn, 1 ether, GOLD_COMP.balanceOf(address(this))) / 99;
+    // @dev Linearly scales vault supply
+    function balancer_supply_equal(uint256 growth) public returns (uint256, uint256) {
+        (, uint256[] memory balances,) = vault.getPoolTokens(0x56bc9d9987edec2fc6e1990e27af4a0987b53096000200000000000000000686);
+
+        growth = between(growth, 0, 50);
+
+        if (growth == 0) return (0,0);
+
+        uint256 amountInGold = balances[0] * growth;
+        uint256 amountInWeth = balances[1] * growth;
 
         GOLD_COMP.approve(address(vault), amountInGold);
         WETH.approve(address(vault), amountInWeth);
@@ -115,6 +120,8 @@ abstract contract MaverickTargets is BaseTargetFunctions, Properties, BeforeAfte
               fromInternalBalance: false
           })
       );
+
+      return (amountInGold, amountInWeth);
     }
 
     // @dev Allows a single sided withdraw

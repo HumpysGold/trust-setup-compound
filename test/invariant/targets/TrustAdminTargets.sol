@@ -11,7 +11,8 @@ import {IAsset} from "../../../src/interfaces/IAsset.sol";
 import {IBalancerVault} from "../../../src/interfaces/IBalancerVault.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-// These are targets that are admin-related
+// These are targets that are admin-related. 
+// Useful for tweaking behaviour of the supplied COMP to the strategy.
 abstract contract TrustAdminTargets is BaseTargetFunctions, Properties, BeforeAfter {
 
     // @audit Skipped
