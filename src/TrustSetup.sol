@@ -144,7 +144,7 @@ contract TrustSetup {
         if (_bptToDivest > bptStaked) revert DivestmentGreaterThanBalance();
 
         // avoids BAL#306: otherwise could bricked the divestment process
-        uint256 invariantRatio = _bptToDivest * BASE_PRECISION / BPT.totalSupply();
+        uint256 invariantRatio = _bptToDivest * BASE_PRECISION / BPT.getActualSupply();
         if (invariantRatio >= BPT_INVARIANT_RATIO) revert DisproportionateExit();
 
         // 1:1 ratio
@@ -319,7 +319,7 @@ contract TrustSetup {
         // 1:1 ratio (ETH:WETH). ETH / USD oracle has 8 decimals
         uint256 ethToUsd = _oracleHelper(ORACLE_ETH_USD, ORACLE_ETH_USD_HEART_BEAT);
 
-        uint256 invariantDivSupply = (BPT.getLastPostJoinExitInvariant() * BASE_PRECISION) / BPT.totalSupply();
+        uint256 invariantDivSupply = (BPT.getInvariant() * BASE_PRECISION) / BPT.getActualSupply();
         uint256 productSequenceOne = uint256(
             FixedPointMathLib.powWad(
                 int256((compToUsd * BASE_PRECISION / GOLD_COMP_NORMALIZED_WEIGHT) * BASE_ORACLE_DIFF_PRECISION),
