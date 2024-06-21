@@ -20,6 +20,14 @@ import {IBalancerVault} from "./interfaces/IBalancerVault.sol";
 contract TrustSetup {
     using SafeERC20 for IERC20;
 
+    ///////////////////////////// Data Types ///////////////////////////////
+    enum Phase {
+        NEUTRAL, // 0: no action is allowed
+        ALLOW_INVESTMENT, // 1: allows the multisig to call the invest method
+        ALLOW_DIVESTMENT // 2: allows the multisig to call the divestment methods
+
+    }
+
     ///////////////////////////// Constants ///////////////////////////////
     uint256 constant ORACLE_DECIMALS_BASE = 1e8;
     uint256 constant BASE_ORACLE_DIFF_PRECISION = 1e10;
@@ -65,6 +73,8 @@ contract TrustSetup {
 
     uint256 public slippageMinOut;
 
+    Phase public currentPhase;
+
     /////////////////////////////// Errors ////////////////////////////////
     error NotCompTimelock();
     error NotGoldenBoyzMultisig();
@@ -82,6 +92,8 @@ contract TrustSetup {
 
     error NegativeOracleAnswer();
     error StaleOracle();
+
+    error PhaseNotMatching();
 
     /////////////////////////////// Events ////////////////////////////////
     event CompInvested(uint256 compAmount, uint256 bptReceived, uint256 timestampt);
@@ -104,6 +116,12 @@ contract TrustSetup {
         _;
     }
 
+    /// @notice Verifies that Compound Timelock actually granted rights to the GoldenBoyz multisig target action
+    modifier CheckPhase(Phase expectedPhase) {
+        if (expectedPhase != currentPhase) revert PhaseNotMatching();
+        _;
+    }
+
     /// @notice Grants unlimited approvals at deployment time to facilitate internal operations for trusted contracts
     constructor() {
         COMP.approve(address(GOLD_COMP), type(uint256).max);
@@ -120,9 +138,19 @@ contract TrustSetup {
 
     /////////////////////////////// External methods ////////////////////////////////
 
+    /// @notice Updates the current phase of the contract and grants different right to the GoldenBoyz multisig
+    /// @param _phase The new phase to be set
+    function updatePhase(Phase _phase) external onlyCompTimelock {
+        currentPhase = _phase;
+    }
+
     /// @notice Allocates the entire idle balance of COMP within the contract into the invesment strategy
     /// @param _expectedMinBptOffchain The minimum amount of BPT expected calculated offchain
-    function invest(uint256 _expectedMinBptOffchain) external onlyCompTimelock {
+    function invest(uint256 _expectedMinBptOffchain)
+        external
+        onlyGoldenBoyzMultisig
+        CheckPhase(Phase.ALLOW_INVESTMENT)
+    {
         uint256 compBalance = COMP.balanceOf(address(this));
         if (compBalance == 0) revert NotCompBalance();
 
@@ -143,7 +171,11 @@ contract TrustSetup {
     /// @dev Given the constrainst determined by the Balancer V2 pool, at once no more than 30% of the supply should be withdrawn
     /// @param _bptToDivest Amount of BPT to divest from the strategy
     /// @param _minGoldCompExpected The minimum amount of GOLDCOMP expected
-    function commenceDivestment(uint256 _bptToDivest, uint256 _minGoldCompExpected) external onlyCompTimelock {
+    function commenceDivestment(uint256 _bptToDivest, uint256 _minGoldCompExpected)
+        external
+        onlyGoldenBoyzMultisig
+        CheckPhase(Phase.ALLOW_DIVESTMENT)
+    {
         // strict input checks since transaction is going via Compound's Timelock
         uint256 bptStaked = GAUGE.balanceOf(address(this));
         if (bptStaked == 0) revert NothingStakedInGauge();
@@ -169,7 +201,7 @@ contract TrustSetup {
 
     /// @notice Completes the divestment by withdrawing from GOLDCOMP vault and sending COMP to the comptroller
     /// @dev This method should be called only after commence divest method has been executed and the cooldown period has passed
-    function completeDivestment() external onlyCompTimelock {
+    function completeDivestment() external onlyGoldenBoyzMultisig CheckPhase(Phase.ALLOW_DIVESTMENT) {
         if (!divestmentQueued) revert NoDivestmentQueued();
 
         GOLD_COMP.withdraw();

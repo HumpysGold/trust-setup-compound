@@ -13,15 +13,43 @@ import {TrustSetup} from "../src/TrustSetup.sol";
 contract TrustSetupTest is BaseFixture {
     error FailedCall();
 
-    function testInvest_revert() public {
+    function testUpdatePhase_revert() public {
         // no comp timelock caller
+        vm.prank(trustSetup.GOLD_MSIG());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
+        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_INVESTMENT);
+    }
+
+    function testUpdatePhase() public {
+        TrustSetup.Phase pB = trustSetup.currentPhase();
+        // assert its state is neutral by default
+        assertEq(uint8(pB), 0);
+
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_INVESTMENT);
+
+        TrustSetup.Phase pA = trustSetup.currentPhase();
+        assertNotEq(uint8(pB), uint8(pA));
+        assertEq(uint8(pA), uint8(TrustSetup.Phase.ALLOW_INVESTMENT));
+    }
+
+    function testInvest_revert() public {
+        // no granted investment phase by timelock
+        vm.prank(trustSetup.GOLD_MSIG());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.PhaseNotMatching.selector));
+        trustSetup.invest(0);
+
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_INVESTMENT);
+
+        // no comp multisig caller
         address caller = address(4345454);
         vm.prank(caller);
-        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotGoldenBoyzMultisig.selector));
         trustSetup.invest(0);
 
         // no COMP balance
-        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.prank(trustSetup.GOLD_MSIG());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompBalance.selector));
         trustSetup.invest(0);
     }
@@ -61,26 +89,34 @@ contract TrustSetupTest is BaseFixture {
     function testCommenceDivestment_revert() public {
         uint256 bptTotalSupply = trustSetup.GAUGE().totalSupply();
 
+        // no granted investment phase by timelock
+        vm.prank(trustSetup.GOLD_MSIG());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.PhaseNotMatching.selector));
+        trustSetup.commenceDivestment(0, 0);
+
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_DIVESTMENT);
+
         // no comp timelock caller
         address caller = address(4345454);
         vm.prank(caller);
-        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotGoldenBoyzMultisig.selector));
         trustSetup.commenceDivestment(50, 0);
 
         // no gauge balance
-        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.prank(trustSetup.GOLD_MSIG());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NothingStakedInGauge.selector));
         trustSetup.commenceDivestment(50, 0);
 
         // divesting more than gauge balance
         deal(address(trustSetup.GAUGE()), address(trustSetup), 500e18);
-        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.prank(trustSetup.GOLD_MSIG());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.DivestmentGreaterThanBalance.selector));
         trustSetup.commenceDivestment(501e18, 0);
 
         // more than 30% BPT supply
         deal(address(trustSetup.GAUGE()), address(trustSetup), bptTotalSupply / 3);
-        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.prank(trustSetup.GOLD_MSIG());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.DisproportionateExit.selector));
         trustSetup.commenceDivestment(bptTotalSupply / 3, 0);
     }
@@ -129,14 +165,22 @@ contract TrustSetupTest is BaseFixture {
     }
 
     function testCompleteDivestment_revert() public {
+        // no granted investment phase by timelock
+        vm.prank(trustSetup.GOLD_MSIG());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.PhaseNotMatching.selector));
+        trustSetup.completeDivestment();
+
+        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_DIVESTMENT);
+
         // no comp timelock caller
         address caller = address(4345454);
         vm.prank(caller);
-        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotGoldenBoyzMultisig.selector));
         trustSetup.completeDivestment();
 
         // no divestment queued
-        vm.prank(trustSetup.COMPOUND_TIMELOCK());
+        vm.prank(trustSetup.GOLD_MSIG());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NoDivestmentQueued.selector));
         trustSetup.completeDivestment();
     }
