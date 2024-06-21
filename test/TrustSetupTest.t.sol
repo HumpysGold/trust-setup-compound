@@ -65,24 +65,24 @@ contract TrustSetupTest is BaseFixture {
         address caller = address(4345454);
         vm.prank(caller);
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
-        trustSetup.commenceDivestment(50);
+        trustSetup.commenceDivestment(50, 0);
 
         // no gauge balance
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NothingStakedInGauge.selector));
-        trustSetup.commenceDivestment(50);
+        trustSetup.commenceDivestment(50, 0);
 
         // divesting more than gauge balance
         deal(address(trustSetup.GAUGE()), address(trustSetup), 500e18);
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.DivestmentGreaterThanBalance.selector));
-        trustSetup.commenceDivestment(501e18);
+        trustSetup.commenceDivestment(501e18, 0);
 
         // more than 30% BPT supply
         deal(address(trustSetup.GAUGE()), address(trustSetup), bptTotalSupply / 3);
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.DisproportionateExit.selector));
-        trustSetup.commenceDivestment(bptTotalSupply / 3);
+        trustSetup.commenceDivestment(bptTotalSupply / 3, 0);
     }
 
     function testCommenceDivestment(uint256 _bptBalance) public {

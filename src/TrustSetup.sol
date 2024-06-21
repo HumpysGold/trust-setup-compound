@@ -76,6 +76,7 @@ contract TrustSetup {
     error NoDivestmentQueued();
 
     error MinBptLowerThanExpected();
+    error MinGoldCompLowerThanExpected();
 
     error MisconfiguredSlippage();
 
@@ -140,22 +141,25 @@ contract TrustSetup {
 
     /// @notice Divest partial or all positions from Balancer and queue withdrawal into GOLDCOMP
     /// @dev Given the constrainst determined by the Balancer V2 pool, at once no more than 30% of the supply should be withdrawn
-    /// @param _bptToDivest Amount of BPT to divest from the strategy. If null assumes full divestment
-    function commenceDivestment(uint256 _bptToDivest) external onlyCompTimelock {
+    /// @param _bptToDivest Amount of BPT to divest from the strategy
+    /// @param _minGoldCompExpected The minimum amount of GOLDCOMP expected
+    function commenceDivestment(uint256 _bptToDivest, uint256 _minGoldCompExpected) external onlyCompTimelock {
         // strict input checks since transaction is going via Compound's Timelock
         uint256 bptStaked = GAUGE.balanceOf(address(this));
         if (bptStaked == 0) revert NothingStakedInGauge();
         if (_bptToDivest > bptStaked) revert DivestmentGreaterThanBalance();
 
         // avoids BAL#306: otherwise could bricked the divestment process
-        uint256 invariantRatio = _bptToDivest * BASE_PRECISION / BPT.totalSupply();
+        uint256 invariantRatio = _bptToDivest * BASE_PRECISION / BPT.getActualSupply();
         if (invariantRatio >= BPT_INVARIANT_RATIO) revert DisproportionateExit();
 
         // 1:1 ratio
         GAUGE.withdraw(_bptToDivest);
 
         _withdrawFromBalancerPool(_bptToDivest);
+
         uint256 goldCompBalance = GOLD_COMP.balanceOf(address(this));
+        if (goldCompBalance < _minGoldCompExpected) revert MinGoldCompLowerThanExpected();
 
         GOLD_COMP.queueWithdraw(goldCompBalance);
 

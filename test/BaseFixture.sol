@@ -16,7 +16,9 @@ contract BaseFixture is Test {
     uint256 constant TIMELOCK_DELAY = 172800;
 
     // comptroller holds currently 1_631_724e18 COMP
-    uint256 constant COMP_INVESTED_AMOUNT = 500_000e18;
+    // test are run with 100k COMP for test suite as MAX probably realistic value to handle in one go
+    // 100k COMP ~= $4.9M
+    uint256 constant COMP_INVESTED_AMOUNT = 100_000e18;
 
     address constant MEV_BOT_BUYER = address(655656);
 
@@ -75,7 +77,7 @@ contract BaseFixture is Test {
         signatures[1] = "invest(uint256)";
         bytes[] memory calldatas = new bytes[](2);
         calldatas[0] = abi.encode(address(trustSetup), _compToInvest);
-        calldatas[1] = abi.encode(_compToInvest);
+        calldatas[1] = abi.encode(_compToInvest * 17_000 / 10_000);
         string memory description = "grant comp to trust setup contract and trigger invest";
         vm.prank(PROPOSER_GOVERNANCE);
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);
@@ -86,9 +88,10 @@ contract BaseFixture is Test {
         targets[0] = address(trustSetup);
         uint256[] memory values = new uint256[](1);
         string[] memory signatures = new string[](1);
-        signatures[0] = "commenceDivestment(uint256)";
+        signatures[0] = "commenceDivestment(uint256,uint256)";
         bytes[] memory calldatas = new bytes[](1);
-        calldatas[0] = abi.encode(_bptBalance);
+        uint256 minGoldAmount = _bptBalance * 10_000 / 19_000;
+        calldatas[0] = abi.encode(_bptBalance, minGoldAmount);
         string memory description = "commence divestment";
         vm.prank(PROPOSER_GOVERNANCE);
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);
