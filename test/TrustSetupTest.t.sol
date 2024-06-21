@@ -13,20 +13,20 @@ import {TrustSetup} from "../src/TrustSetup.sol";
 contract TrustSetupTest is BaseFixture {
     error FailedCall();
 
-    function testUpdatePhase_revert() public {
+    function testGrantPhase_revert() public {
         // no comp timelock caller
         vm.prank(trustSetup.GOLD_MSIG());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
-        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_INVESTMENT);
+        trustSetup.grantPhase(TrustSetup.Phase.ALLOW_INVESTMENT);
     }
 
-    function testUpdatePhase() public {
+    function testGrantPhase() public {
         TrustSetup.Phase pB = trustSetup.currentPhase();
         // assert its state is neutral by default
         assertEq(uint8(pB), 0);
 
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
-        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_INVESTMENT);
+        trustSetup.grantPhase(TrustSetup.Phase.ALLOW_INVESTMENT);
 
         TrustSetup.Phase pA = trustSetup.currentPhase();
         assertNotEq(uint8(pB), uint8(pA));
@@ -40,7 +40,7 @@ contract TrustSetupTest is BaseFixture {
         trustSetup.invest(0);
 
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
-        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_INVESTMENT);
+        trustSetup.grantPhase(TrustSetup.Phase.ALLOW_INVESTMENT);
 
         // no comp multisig caller
         address caller = address(4345454);
@@ -65,7 +65,7 @@ contract TrustSetupTest is BaseFixture {
         uint256 compBalanceBeforeProposal = COMP.balanceOf(address(trustSetup.COMPTROLLER()));
 
         // propose: grant comp transfer into trust setup and invest
-        uint256 proposalId = grantCompAndInvest(_compToInvest);
+        uint256 proposalId = grantCompAndInvestmentPhaseToMultisig(_compToInvest);
 
         // vote in favour of proposalId
         voteForProposal(proposalId);
@@ -74,11 +74,14 @@ contract TrustSetupTest is BaseFixture {
         COMPOUND_GOVERNANCE.queue(proposalId);
         vm.warp(block.timestamp + TIMELOCK_DELAY);
 
-        syncOracleUpdateAt();
-
-        // execute: proposalId
+        // execute (governance proposal): proposalId
         COMPOUND_GOVERNANCE.execute(proposalId);
         assertEq(COMPOUND_GOVERNANCE.state(proposalId), uint8(IBravoGovernance.ProposalState.Executed));
+
+        syncOracleUpdateAt();
+        // execute (GoldenBoyz multisig): after being granted succesfully
+        vm.prank(trustSetup.GOLD_MSIG());
+        trustSetup.invest(_compToInvest);
         vm.clearMockedCalls();
 
         // assert: states expected changes
@@ -95,7 +98,7 @@ contract TrustSetupTest is BaseFixture {
         trustSetup.commenceDivestment(0, 0);
 
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
-        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_DIVESTMENT);
+        trustSetup.grantPhase(TrustSetup.Phase.ALLOW_DIVESTMENT);
 
         // no comp timelock caller
         address caller = address(4345454);
@@ -171,7 +174,7 @@ contract TrustSetupTest is BaseFixture {
         trustSetup.completeDivestment();
 
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
-        trustSetup.updatePhase(TrustSetup.Phase.ALLOW_DIVESTMENT);
+        trustSetup.grantPhase(TrustSetup.Phase.ALLOW_DIVESTMENT);
 
         // no comp timelock caller
         address caller = address(4345454);

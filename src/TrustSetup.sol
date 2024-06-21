@@ -140,7 +140,7 @@ contract TrustSetup {
 
     /// @notice Updates the current phase of the contract and grants different right to the GoldenBoyz multisig
     /// @param _phase The new phase to be set
-    function updatePhase(Phase _phase) external onlyCompTimelock {
+    function grantPhase(Phase _phase) external onlyCompTimelock {
         currentPhase = _phase;
     }
 

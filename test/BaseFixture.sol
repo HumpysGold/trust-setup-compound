@@ -24,13 +24,16 @@ contract BaseFixture is Test {
 
     address constant PROPOSER_GOVERNANCE = 0x36cc7B13029B5DEe4034745FB4F24034f3F2ffc6;
 
-    address constant VOTER_CASTER_PENN_BLOCKCHAIN = 0x070341aA5Ed571f0FB2c4a5641409B1A46b4961b;
-    address constant VOTER_CASTER_WINTERMUTE_GOVERNANCE = 0xB933AEe47C438f22DE0747D57fc239FE37878Dd1;
-    address constant VOTER_CASTER_MONETSUPPLY = 0x8d07D225a769b7Af3A923481E1FdF49180e6A265;
-    address constant VOTER_CASTER_A = 0xed11e5eA95a5A3440fbAadc4CC404C56D0a5bb04;
-    address constant VOTER_CASTER_B = 0xdC1F98682F4F8a5c6d54F345F448437b83f5E432;
-    address constant VOTER_CASTER_C = 0x13BDaE8c5F0fC40231F0E6A4ad70196F59138548;
-    address constant VOTER_CASTER_D = 0x54A37d93E57c5DA659F508069Cf65A381b61E189;
+    address[] VOTER_CASTERS = [
+        PROPOSER_GOVERNANCE,
+        0x070341aA5Ed571f0FB2c4a5641409B1A46b4961b,
+        0xB933AEe47C438f22DE0747D57fc239FE37878Dd1,
+        0x8d07D225a769b7Af3A923481E1FdF49180e6A265,
+        0xed11e5eA95a5A3440fbAadc4CC404C56D0a5bb04,
+        0xdC1F98682F4F8a5c6d54F345F448437b83f5E432,
+        0x13BDaE8c5F0fC40231F0E6A4ad70196F59138548,
+        0x54A37d93E57c5DA659F508069Cf65A381b61E189
+    ];
 
     IBravoGovernance public constant COMPOUND_GOVERNANCE = IBravoGovernance(0xc0Da02939E1441F497fd74F78cE7Decb17B66529);
     address public constant COMPOUND_GOVERNANCE_IMPLEMENTATION = 0xeF3B6E9e13706A8F01fe98fdCf66335dc5CfdEED;
@@ -67,18 +70,18 @@ contract BaseFixture is Test {
         vm.label(address(trustSetup.ORACLE_ETH_USD()), "ORACLE_ETH_USD");
     }
 
-    function grantCompAndInvest(uint256 _compToInvest) internal returns (uint256 proposalId) {
+    function grantCompAndInvestmentPhaseToMultisig(uint256 _compToInvest) internal returns (uint256 proposalId) {
         address[] memory targets = new address[](2);
         targets[0] = trustSetup.COMPTROLLER();
         targets[1] = address(trustSetup);
         uint256[] memory values = new uint256[](2);
         string[] memory signatures = new string[](2);
         signatures[0] = "_grantComp(address,uint256)";
-        signatures[1] = "invest(uint256)";
+        signatures[1] = "grantPhase(uint8)";
         bytes[] memory calldatas = new bytes[](2);
         calldatas[0] = abi.encode(address(trustSetup), _compToInvest);
-        calldatas[1] = abi.encode(_compToInvest * 17_000 / 10_000);
-        string memory description = "grant comp to trust setup contract and trigger invest";
+        calldatas[1] = abi.encode(uint8(TrustSetup.Phase.ALLOW_INVESTMENT));
+        string memory description = "grant comp to trust setup contract and grant ALLOW_INVESTMENT phase to multisig";
         vm.prank(PROPOSER_GOVERNANCE);
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);
     }
@@ -115,22 +118,10 @@ contract BaseFixture is Test {
         assertEq(COMPOUND_GOVERNANCE.state(_proposalId), uint8(IBravoGovernance.ProposalState.Active));
 
         // 0=against, 1=for, 2=abstain
-        vm.prank(PROPOSER_GOVERNANCE);
-        COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
-        vm.prank(VOTER_CASTER_PENN_BLOCKCHAIN);
-        COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
-        vm.prank(VOTER_CASTER_WINTERMUTE_GOVERNANCE);
-        COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
-        vm.prank(VOTER_CASTER_MONETSUPPLY);
-        COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
-        vm.prank(VOTER_CASTER_A);
-        COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
-        vm.prank(VOTER_CASTER_B);
-        COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
-        vm.prank(VOTER_CASTER_C);
-        COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
-        vm.prank(VOTER_CASTER_D);
-        COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
+        for (uint256 i; i < VOTER_CASTERS.length; i++) {
+            vm.prank(VOTER_CASTERS[i]);
+            COMPOUND_GOVERNANCE.castVote(_proposalId, 1);
+        }
 
         vm.roll(block.number + COMPOUND_GOVERNANCE.votingPeriod());
         assertEq(COMPOUND_GOVERNANCE.state(_proposalId), uint8(IBravoGovernance.ProposalState.Succeeded));
