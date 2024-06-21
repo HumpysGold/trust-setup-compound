@@ -72,9 +72,10 @@ contract BaseFixture is Test {
         uint256[] memory values = new uint256[](2);
         string[] memory signatures = new string[](2);
         signatures[0] = "_grantComp(address,uint256)";
-        signatures[1] = "invest()";
+        signatures[1] = "invest(uint256)";
         bytes[] memory calldatas = new bytes[](2);
         calldatas[0] = abi.encode(address(trustSetup), _compToInvest);
+        calldatas[1] = abi.encode(_compToInvest);
         string memory description = "grant comp to trust setup contract and trigger invest";
         vm.prank(PROPOSER_GOVERNANCE);
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);

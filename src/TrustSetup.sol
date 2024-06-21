@@ -75,6 +75,8 @@ contract TrustSetup {
     error DisproportionateExit();
     error NoDivestmentQueued();
 
+    error MinBptLowerThanExpected();
+
     error MisconfiguredSlippage();
 
     error NegativeOracleAnswer();
@@ -118,7 +120,8 @@ contract TrustSetup {
     /////////////////////////////// External methods ////////////////////////////////
 
     /// @notice Allocates the entire idle balance of COMP within the contract into the invesment strategy
-    function invest() external onlyCompTimelock {
+    /// @param _expectedMinBptOffchain The minimum amount of BPT expected calculated offchain
+    function invest(uint256 _expectedMinBptOffchain) external onlyCompTimelock {
         uint256 compBalance = COMP.balanceOf(address(this));
         if (compBalance == 0) revert NotCompBalance();
 
@@ -128,6 +131,7 @@ contract TrustSetup {
         _depositInBalancerPool(compBalance);
 
         uint256 bptBalance = BPT.balanceOf(address(this));
+        if (bptBalance < _expectedMinBptOffchain) revert MinBptLowerThanExpected();
 
         GAUGE.deposit(bptBalance);
 

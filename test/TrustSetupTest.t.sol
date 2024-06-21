@@ -18,12 +18,12 @@ contract TrustSetupTest is BaseFixture {
         address caller = address(4345454);
         vm.prank(caller);
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
-        trustSetup.invest();
+        trustSetup.invest(0);
 
         // no COMP balance
         vm.prank(trustSetup.COMPOUND_TIMELOCK());
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompBalance.selector));
-        trustSetup.invest();
+        trustSetup.invest(0);
     }
 
     function testInvest(uint256 _compToInvest) public {
