@@ -136,7 +136,7 @@ contract TrustSetupTest is BaseFixture {
         assertFalse(trustSetup.divestmentQueued());
 
         // propose: commence divestment
-        uint256 proposalId = queueCommenceDivestment(_bptBalance);
+        uint256 proposalId = grantPhaseToMultisig(TrustSetup.Phase.ALLOW_DIVESTMENT);
 
         // vote in favour of proposalId
         voteForProposal(proposalId);
@@ -145,11 +145,16 @@ contract TrustSetupTest is BaseFixture {
         COMPOUND_GOVERNANCE.queue(proposalId);
         vm.warp(block.timestamp + TIMELOCK_DELAY);
 
-        syncOracleUpdateAt();
-
         // execute: proposalId
         COMPOUND_GOVERNANCE.execute(proposalId);
         assertEq(COMPOUND_GOVERNANCE.state(proposalId), uint8(IBravoGovernance.ProposalState.Executed));
+
+        syncOracleUpdateAt();
+        // execute (GoldenBoyz multisig): after being granted succesfully
+        vm.prank(trustSetup.GOLD_MSIG());
+        uint256 minGoldAmount = _bptBalance * 10_000 / 19_000;
+        trustSetup.commenceDivestment(_bptBalance, minGoldAmount);
+        vm.clearMockedCalls();
 
         (uint256 amount, uint256 timestamp, uint256 releaseTimestamp, bool withdrawn) =
             trustSetup.GOLD_COMP().queuedWithdrawals(address(trustSetup), 0);

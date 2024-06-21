@@ -86,16 +86,15 @@ contract BaseFixture is Test {
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);
     }
 
-    function queueCommenceDivestment(uint256 _bptBalance) internal returns (uint256 proposalId) {
+    function grantPhaseToMultisig(TrustSetup.Phase _phase) internal returns (uint256 proposalId) {
         address[] memory targets = new address[](1);
         targets[0] = address(trustSetup);
         uint256[] memory values = new uint256[](1);
         string[] memory signatures = new string[](1);
-        signatures[0] = "commenceDivestment(uint256,uint256)";
+        signatures[0] = "grantPhase(uint8)";
         bytes[] memory calldatas = new bytes[](1);
-        uint256 minGoldAmount = _bptBalance * 10_000 / 19_000;
-        calldatas[0] = abi.encode(_bptBalance, minGoldAmount);
-        string memory description = "commence divestment";
+        calldatas[0] = abi.encode(uint8(_phase));
+        string memory description = "grant phase to GOLD_MSIG";
         vm.prank(PROPOSER_GOVERNANCE);
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);
     }
