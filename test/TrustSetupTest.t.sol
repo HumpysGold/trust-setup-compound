@@ -381,4 +381,22 @@ contract TrustSetupTest is BaseFixture {
 
         assertEq(trustSetup.slippageMinOut(), 9500);
     }
+
+    function testDeriskFromStrategy_revert() public {
+        // no comp timelock caller
+        address caller = address(4345454);
+        vm.prank(caller);
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
+        trustSetup.deriskFromStrategy();
+    }
+
+    function testDeriskFromStrategy() public {
+        uint256 comptrollerBeforeBalance = COMP.balanceOf(trustSetup.COMPTROLLER());
+        deal(address(COMP), address(trustSetup), COMP_INVESTED_AMOUNT);
+
+        vm.startPrank(trustSetup.COMPOUND_TIMELOCK());
+        trustSetup.deriskFromStrategy();
+
+        assertEq(COMP.balanceOf(trustSetup.COMPTROLLER()), comptrollerBeforeBalance + COMP_INVESTED_AMOUNT);
+    }
 }

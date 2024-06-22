@@ -217,7 +217,7 @@ contract TrustSetup {
     }
 
     /// @notice Derisks from the strategy by sending back all assets to the comptroller
-    /// @audit-info While derisking saving gas by caching any balance does not provide any meaniful savings
+    /// @custom:gas-optimisation While derisking saving gas by caching any balance does not provide any meaniful savings or benefit versus readability
     function deriskFromStrategy() external onlyCompTimelock {
         // set neutral currentPhase
         currentPhase = Phase.NEUTRAL;

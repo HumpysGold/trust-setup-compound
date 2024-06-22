@@ -16,9 +16,8 @@ contract BaseFixture is Test {
     uint256 constant TIMELOCK_DELAY = 172800;
 
     // comptroller holds currently 1_631_724e18 COMP
-    // test are run with 100k COMP for test suite as MAX probably realistic value to handle in one go
-    // 100k COMP ~= $4.9M
-    uint256 constant COMP_INVESTED_AMOUNT = 100_000e18;
+    // test are run cap max at 5% of balance in comptroller
+    uint256 constant COMP_INVESTED_AMOUNT = 81_586e18;
 
     address constant MEV_BOT_BUYER = address(655656);
 
