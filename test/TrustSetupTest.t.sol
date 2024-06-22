@@ -394,9 +394,24 @@ contract TrustSetupTest is BaseFixture {
         uint256 comptrollerBeforeBalance = COMP.balanceOf(trustSetup.COMPTROLLER());
         deal(address(COMP), address(trustSetup), COMP_INVESTED_AMOUNT);
 
+        // propose: commence divestment
+        uint256 proposalId = grantPhaseToMultisig(TrustSetup.Phase.ALLOW_DIVESTMENT);
+
+        // vote in favour of proposalId
+        voteForProposal(proposalId);
+
+        // queue function can be called by any address
+        COMPOUND_GOVERNANCE.queue(proposalId);
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+
+        // execute: proposalId
+        COMPOUND_GOVERNANCE.execute(proposalId);
+        assertEq(uint8(trustSetup.currentPhase()), uint8(TrustSetup.Phase.ALLOW_DIVESTMENT));
+
         vm.startPrank(trustSetup.COMPOUND_TIMELOCK());
         trustSetup.deriskFromStrategy();
 
         assertEq(COMP.balanceOf(trustSetup.COMPTROLLER()), comptrollerBeforeBalance + COMP_INVESTED_AMOUNT);
+        assertEq(uint8(trustSetup.currentPhase()), uint8(TrustSetup.Phase.NEUTRAL));
     }
 }
