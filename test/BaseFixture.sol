@@ -99,18 +99,6 @@ contract BaseFixture is Test {
         proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);
     }
 
-    function queueCompleteDivestment() internal returns (uint256 proposalId) {
-        address[] memory targets = new address[](1);
-        targets[0] = address(trustSetup);
-        uint256[] memory values = new uint256[](1);
-        string[] memory signatures = new string[](1);
-        signatures[0] = "completeDivestment()";
-        bytes[] memory calldatas = new bytes[](1);
-        string memory description = "complete divestment";
-        vm.prank(PROPOSER_GOVERNANCE);
-        proposalId = COMPOUND_GOVERNANCE.propose(targets, values, signatures, calldatas, description);
-    }
-
     /// @dev Mirror proposal state being on a successful state to be able to queue
     function voteForProposal(uint256 _proposalId) internal {
         vm.roll(block.number + COMPOUND_GOVERNANCE.votingDelay() + 1);

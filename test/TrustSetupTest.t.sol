@@ -194,14 +194,15 @@ contract TrustSetupTest is BaseFixture {
     }
 
     function testCompleteDivestment() public {
-        deal(address(trustSetup.GAUGE()), address(trustSetup), 500e18);
+        uint256 bptBalance = 500e18;
+        deal(address(trustSetup.GAUGE()), address(trustSetup), bptBalance);
 
         uint256 compBalance = COMP.balanceOf(address(trustSetup.COMPTROLLER()));
         // assert: initial state of the trust setup. nothing queued
         assertFalse(trustSetup.divestmentQueued());
 
         // propose: commence divestment
-        uint256 proposalId = queueCommenceDivestment(500e18);
+        uint256 proposalId = grantPhaseToMultisig(TrustSetup.Phase.ALLOW_DIVESTMENT);
 
         // vote in favour of proposalId
         voteForProposal(proposalId);
@@ -210,25 +211,22 @@ contract TrustSetupTest is BaseFixture {
         COMPOUND_GOVERNANCE.queue(proposalId);
         vm.warp(block.timestamp + TIMELOCK_DELAY);
 
-        syncOracleUpdateAt();
-
         // execute: proposalId
         COMPOUND_GOVERNANCE.execute(proposalId);
         assertEq(COMPOUND_GOVERNANCE.state(proposalId), uint8(IBravoGovernance.ProposalState.Executed));
 
-        proposalId = queueCompleteDivestment();
+        syncOracleUpdateAt();
+        // execute (GoldenBoyz multisig): after being granted succesfully
+        vm.prank(trustSetup.GOLD_MSIG());
+        uint256 minGoldAmount = bptBalance * 10_000 / 19_000;
+        trustSetup.commenceDivestment(bptBalance, minGoldAmount);
+        vm.clearMockedCalls();
 
-        // vote in favour of proposalId
-        voteForProposal(proposalId);
-
-        // queue function can be called by any address
-        COMPOUND_GOVERNANCE.queue(proposalId);
         // wait for the divestment to be withdrawable
         vm.warp(block.timestamp + trustSetup.GOLD_COMP().daysToWait() + 1);
 
-        // execute: proposalId
-        COMPOUND_GOVERNANCE.execute(proposalId);
-        assertEq(COMPOUND_GOVERNANCE.state(proposalId), uint8(IBravoGovernance.ProposalState.Executed));
+        vm.prank(trustSetup.GOLD_MSIG());
+        trustSetup.completeDivestment();
 
         (,,, bool withdrawn) = trustSetup.GOLD_COMP().queuedWithdrawals(address(trustSetup), 0);
 
