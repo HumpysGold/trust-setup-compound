@@ -285,6 +285,7 @@ contract TrustSetupTest is BaseFixture {
     }
 
     function testBuyWethWithComp_revert() public {
+        vm.startPrank(MEV_BOT_BUYER);
         // oracle is staled
         vm.mockCall(
             address(trustSetup.ORACLE_COMP_ETH()),
@@ -297,9 +298,8 @@ contract TrustSetupTest is BaseFixture {
                 0
             )
         );
-        vm.prank(MEV_BOT_BUYER);
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.StaleOracle.selector));
-        trustSetup.buyWethWithComp(10);
+        trustSetup.buyWethWithComp(10, 0);
 
         // oracle answer is negative
         vm.mockCall(
@@ -313,28 +313,33 @@ contract TrustSetupTest is BaseFixture {
                 0
             )
         );
-        vm.prank(MEV_BOT_BUYER);
         vm.expectRevert(abi.encodeWithSelector(TrustSetup.NegativeOracleAnswer.selector));
-        trustSetup.buyWethWithComp(10);
+        trustSetup.buyWethWithComp(10, 0);
         vm.clearMockedCalls();
 
         // not approve for transferFrom
-        deal(address(COMP), MEV_BOT_BUYER, 50e18);
-        vm.prank(MEV_BOT_BUYER);
+        uint256 dummyCompAmount = 50e18;
+        deal(address(COMP), MEV_BOT_BUYER, dummyCompAmount);
         vm.expectRevert("Comp::transferFrom: transfer amount exceeds spender allowance");
-        trustSetup.buyWethWithComp(50e18);
+        trustSetup.buyWethWithComp(dummyCompAmount, 0);
 
         // not enough comp
-        vm.prank(MEV_BOT_BUYER);
         COMP.approve(address(trustSetup), type(uint256).max);
-        vm.prank(MEV_BOT_BUYER);
         vm.expectRevert("Comp::_transferTokens: transfer amount exceeds balance");
-        trustSetup.buyWethWithComp(60e18);
+        trustSetup.buyWethWithComp(60e18, 0);
 
         // not enough weth in contract compare to comp transfer
-        vm.prank(MEV_BOT_BUYER);
         vm.expectRevert(abi.encodeWithSelector(FailedCall.selector));
-        trustSetup.buyWethWithComp(30e18);
+        trustSetup.buyWethWithComp(30e18, 0);
+
+        // minOut buyer protection is triggered
+        uint256 wethToFund = trustSetup.getCompToWethRatio(dummyCompAmount) * 12_000 / 10_000;
+        deal(address(WETH), address(trustSetup), wethToFund);
+
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.BuyerProtectionTriggered.selector));
+        trustSetup.buyWethWithComp(dummyCompAmount, wethToFund + 1);
+
+        vm.stopPrank();
     }
 
     function testBuyWethWithComp(uint256 _compAmount) public {
@@ -343,14 +348,16 @@ contract TrustSetupTest is BaseFixture {
         vm.assume(_compAmount < 1000e18);
         deal(address(COMP), MEV_BOT_BUYER, _compAmount);
 
-        deal(address(WETH), address(trustSetup), trustSetup.getCompToWethRatio(_compAmount));
+        // amounts considers the 2% fee by default
+        uint256 wethToFund = trustSetup.getCompToWethRatio(_compAmount) * 12_000 / 10_000;
+        deal(address(WETH), address(trustSetup), wethToFund);
 
         uint256 compBalanceInCompotroller = COMP.balanceOf(trustSetup.COMPTROLLER());
 
         vm.prank(MEV_BOT_BUYER);
         COMP.approve(address(trustSetup), type(uint256).max);
         vm.prank(MEV_BOT_BUYER);
-        trustSetup.buyWethWithComp(_compAmount);
+        trustSetup.buyWethWithComp(_compAmount, wethToFund);
 
         assertEq(COMP.balanceOf(MEV_BOT_BUYER), 0);
         assertEq(WETH.balanceOf(address(trustSetup)), 0);

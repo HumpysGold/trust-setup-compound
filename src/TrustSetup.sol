@@ -36,7 +36,7 @@ contract TrustSetup {
     uint256 constant BASE_PRECISION_TWOFOLD = 1e36;
 
     uint256 constant MIN_SLIPPAGE_VALUE = 9_100;
-    uint256 constant SLIPPAGE_PRECISION = 10_000;
+    uint256 constant BPS = 10_000;
 
     address public constant GOLD_MSIG = 0x941dcEA21101A385b979286CC6D6A9Bf435EB1C2;
     address public constant COMPOUND_TIMELOCK = 0x6d903f6003cca6255D85CcA4D3B5E5146dC33925;
@@ -73,6 +73,8 @@ contract TrustSetup {
 
     uint256 public slippageMinOut;
 
+    uint256 public wethCompOracleSwappFee;
+
     Phase public currentPhase;
 
     /////////////////////////////// Errors ////////////////////////////////
@@ -92,6 +94,8 @@ contract TrustSetup {
 
     error NegativeOracleAnswer();
     error StaleOracle();
+
+    error BuyerProtectionTriggered();
 
     error PhaseNotMatching();
 
@@ -136,6 +140,9 @@ contract TrustSetup {
         // default value at deployment, it can be modified by the Compound Timelock
         // to avoid funds being frozen on periods on high volatility
         slippageMinOut = 9_400;
+
+        // default value at deployment is 2% given the oracle deviation threshold
+        wethCompOracleSwappFee = 12_000;
     }
 
     /////////////////////////////// External methods ////////////////////////////////
@@ -241,7 +248,7 @@ contract TrustSetup {
     /// @notice Sets the slippage for the Balancer pool operations
     /// @param _slippageMinOut The new slippage margin
     function setSlippageMinOut(uint256 _slippageMinOut) external onlyCompTimelock {
-        if (_slippageMinOut > SLIPPAGE_PRECISION || _slippageMinOut < MIN_SLIPPAGE_VALUE) {
+        if (_slippageMinOut > BPS || _slippageMinOut < MIN_SLIPPAGE_VALUE) {
             revert MisconfiguredSlippage();
         }
         slippageMinOut = _slippageMinOut;
@@ -262,8 +269,10 @@ contract TrustSetup {
 
     /// @notice The caller is swapping a specific amount of COMP tokens at the oracle price (COMP/ETH) for WETH. Permissionless
     /// @param _compAmount The amount of COMP token being sent into the contract
-    function buyWethWithComp(uint256 _compAmount) external {
-        uint256 wethAmount = _compToWethRatio(_compAmount);
+    /// @param _minOut The minimum amount of WETH expected
+    function buyWethWithComp(uint256 _compAmount, uint256 _minOut) external {
+        uint256 wethAmount = _compToWethRatio(_compAmount) * wethCompOracleSwappFee / BPS;
+        if (wethAmount < _minOut) revert BuyerProtectionTriggered();
 
         // COMP is sent directly into comptroller
         COMP.safeTransferFrom(msg.sender, COMPTROLLER, _compAmount);
@@ -410,7 +419,7 @@ contract TrustSetup {
 
         // use of fixed point arithmetic and the powWad operation introduces a loss of precision, causing productSequenceTwo to be slightly higher than its theoretical value.
         // to mitigate this, we apply a more aggressive slippage margin, ensuring the minimum expected output amount is protected
-        return minBpt * slippageMinOut / SLIPPAGE_PRECISION;
+        return minBpt * slippageMinOut / BPS;
     }
 
     /// @param _bptBalance The amount of BPT to be converted into minimum COMP out expected
@@ -421,6 +430,6 @@ contract TrustSetup {
 
         // use of fixed point arithmetic and the powWad operation introduces a loss of precision, causing productSequenceTwo to be slightly higher than its theoretical value.
         // to mitigate this, we apply a more aggressive slippage margin, ensuring the minimum expected output amount is protected
-        return minComp * slippageMinOut / SLIPPAGE_PRECISION;
+        return minComp * slippageMinOut / BPS;
     }
 }
