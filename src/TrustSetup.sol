@@ -222,18 +222,18 @@ contract TrustSetup {
         // set neutral currentPhase
         currentPhase = Phase.NEUTRAL;
 
-        // sends back to comptroller any existing COMP balance
+        // sends back to comptroller any existing COMP balance. it can handle the token natively
         if (COMP.balanceOf(address(this)) > 0) COMP.safeTransfer(COMPTROLLER, COMP.balanceOf(address(this)));
 
-        // sends back to comptroller any existing gauge balance
+        // sends back to Compound Timelock any existing gauge balance
         if (GAUGE.balanceOf(address(this)) > 0) {
             // 1:1 ratio (GAUGE:BPT)
             GAUGE.withdraw(GAUGE.balanceOf(address(this)));
-            BPT.transfer(COMPTROLLER, BPT.balanceOf(address(this)));
+            BPT.transfer(COMPOUND_TIMELOCK, BPT.balanceOf(address(this)));
         }
 
-        // sends back to comptroller any existing WETH
-        if (WETH.balanceOf(address(this)) > 0) WETH.safeTransfer(COMPTROLLER, WETH.balanceOf(address(this)));
+        // sends back to Compound Timelock any existing WETH
+        if (WETH.balanceOf(address(this)) > 0) WETH.safeTransfer(COMPOUND_TIMELOCK, WETH.balanceOf(address(this)));
 
         emit DeriskActivated(block.timestamp);
     }
