@@ -389,6 +389,34 @@ contract TrustSetupTest is BaseFixture {
         assertEq(trustSetup.slippageMinOut(), 9500);
     }
 
+    function testSetWethCompOracleSwapFee_revert() public {
+        // no goldenboyz multisig caller
+        address caller = address(4345454);
+        vm.prank(caller);
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotGoldenBoyzMultisig.selector));
+        trustSetup.setWethCompOracleSwapFee(3243);
+
+        // values misconfigured (<10000 or >12000)
+        vm.startPrank(trustSetup.GOLD_MSIG());
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.MisconfiguredOracleFee.selector));
+        trustSetup.setWethCompOracleSwapFee(9999);
+
+        vm.expectRevert(abi.encodeWithSelector(TrustSetup.MisconfiguredOracleFee.selector));
+        trustSetup.setWethCompOracleSwapFee(12001);
+        vm.stopPrank();
+    }
+
+    function testSetWethCompOracleSwapFee() public {
+        uint256 oracleFeeCurrentValue = trustSetup.wethCompOracleSwapFee();
+        uint256 newOracleFeeValue = 11500;
+
+        vm.prank(trustSetup.GOLD_MSIG());
+        trustSetup.setWethCompOracleSwapFee(11500);
+
+        assertEq(trustSetup.wethCompOracleSwapFee(), newOracleFeeValue);
+        assertNotEq(trustSetup.wethCompOracleSwapFee(), oracleFeeCurrentValue);
+    }
+
     function testDeriskFromStrategy_revert() public {
         // no comp timelock caller
         address caller = address(4345454);

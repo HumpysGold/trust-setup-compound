@@ -73,7 +73,7 @@ contract TrustSetup {
 
     uint256 public slippageMinOut;
 
-    uint256 public wethCompOracleSwappFee;
+    uint256 public wethCompOracleSwapFee;
 
     Phase public currentPhase;
 
@@ -91,6 +91,7 @@ contract TrustSetup {
     error MinGoldCompLowerThanExpected();
 
     error MisconfiguredSlippage();
+    error MisconfiguredOracleFee();
 
     error NegativeOracleAnswer();
     error StaleOracle();
@@ -142,7 +143,7 @@ contract TrustSetup {
         slippageMinOut = 9_400;
 
         // default value at deployment is 2% given the oracle deviation threshold
-        wethCompOracleSwappFee = 12_000;
+        wethCompOracleSwapFee = 12_000;
     }
 
     /////////////////////////////// External methods ////////////////////////////////
@@ -254,6 +255,15 @@ contract TrustSetup {
         slippageMinOut = _slippageMinOut;
     }
 
+    /// @notice Sets the fee for the WETH/COMP oracle swap. Only callable by the GoldenBoyz multisig for operational speed
+    /// @param _wethCompOracleSwapFee The new fee for the swap
+    function setWethCompOracleSwapFee(uint256 _wethCompOracleSwapFee) external onlyGoldenBoyzMultisig {
+        // allows for max 2% fee
+        if (_wethCompOracleSwapFee > 12_000 || _wethCompOracleSwapFee < BPS) revert MisconfiguredOracleFee();
+        // whenever is set to 10_000, it translates to basically not having any fee for that swap operation
+        wethCompOracleSwapFee = _wethCompOracleSwapFee;
+    }
+
     /// @notice Swaps gauge rewards for WETH. Only callable by the GoldenBoyz multisig, primarily intended to safeguard the minimum amount expected
     /// @dev The multisig should simulate the swap and ensure the minimum amount of WETH expected is well protected calling offchain querySwap method
     /// @param _minWethOut The minimum amount of WETH expected, calculated offchain
@@ -271,7 +281,7 @@ contract TrustSetup {
     /// @param _compAmount The amount of COMP token being sent into the contract
     /// @param _minOut The minimum amount of WETH expected
     function buyWethWithComp(uint256 _compAmount, uint256 _minOut) external {
-        uint256 wethAmount = _compToWethRatio(_compAmount) * wethCompOracleSwappFee / BPS;
+        uint256 wethAmount = _compToWethRatio(_compAmount) * wethCompOracleSwapFee / BPS;
         if (wethAmount < _minOut) revert BuyerProtectionTriggered();
 
         // COMP is sent directly into comptroller
