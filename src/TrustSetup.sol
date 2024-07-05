@@ -143,7 +143,7 @@ contract TrustSetup {
         slippageMinOut = 9_400;
 
         // default value at deployment is 2% given the oracle deviation threshold
-        wethCompOracleSwapFee = 12_000;
+        wethCompOracleSwapFee = 10_200;
     }
 
     /////////////////////////////// External methods ////////////////////////////////
