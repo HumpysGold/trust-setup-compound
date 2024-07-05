@@ -349,7 +349,7 @@ contract TrustSetupTest is BaseFixture {
         deal(address(COMP), MEV_BOT_BUYER, _compAmount);
 
         // amounts considers the 2% fee by default
-        uint256 wethToFund = trustSetup.getCompToWethRatio(_compAmount) * 12_000 / 10_000;
+        uint256 wethToFund = trustSetup.getCompToWethRatio(_compAmount) * 10_200 / 10_000;
         deal(address(WETH), address(trustSetup), wethToFund);
 
         uint256 compBalanceInCompotroller = COMP.balanceOf(trustSetup.COMPTROLLER());
@@ -415,38 +415,5 @@ contract TrustSetupTest is BaseFixture {
 
         assertEq(trustSetup.wethCompOracleSwapFee(), newOracleFeeValue);
         assertNotEq(trustSetup.wethCompOracleSwapFee(), oracleFeeCurrentValue);
-    }
-
-    function testDeriskFromStrategy_revert() public {
-        // no comp timelock caller
-        address caller = address(4345454);
-        vm.prank(caller);
-        vm.expectRevert(abi.encodeWithSelector(TrustSetup.NotCompTimelock.selector));
-        trustSetup.deriskFromStrategy();
-    }
-
-    function testDeriskFromStrategy() public {
-        uint256 comptrollerBeforeBalance = COMP.balanceOf(trustSetup.COMPTROLLER());
-        deal(address(COMP), address(trustSetup), COMP_INVESTED_AMOUNT);
-
-        // propose: commence divestment
-        uint256 proposalId = grantPhaseToMultisig(TrustSetup.Phase.ALLOW_DIVESTMENT);
-
-        // vote in favour of proposalId
-        voteForProposal(proposalId);
-
-        // queue function can be called by any address
-        COMPOUND_GOVERNANCE.queue(proposalId);
-        vm.warp(block.timestamp + TIMELOCK_DELAY);
-
-        // execute: proposalId
-        COMPOUND_GOVERNANCE.execute(proposalId);
-        assertEq(uint8(trustSetup.currentPhase()), uint8(TrustSetup.Phase.ALLOW_DIVESTMENT));
-
-        vm.startPrank(trustSetup.COMPOUND_TIMELOCK());
-        trustSetup.deriskFromStrategy();
-
-        assertEq(COMP.balanceOf(trustSetup.COMPTROLLER()), comptrollerBeforeBalance + COMP_INVESTED_AMOUNT);
-        assertEq(uint8(trustSetup.currentPhase()), uint8(TrustSetup.Phase.NEUTRAL));
     }
 }

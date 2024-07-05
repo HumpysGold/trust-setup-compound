@@ -108,8 +108,6 @@ contract TrustSetup {
     event RewardSwapped(uint256 goldBalance, uint256 wethReceived, uint256 timestampt);
     event WethBoughtWithComp(address indexed buyer, uint256 compAmount, uint256 wethAmount);
 
-    event DeriskActivated(uint256 timestampt);
-
     /////////////////////////////// Modifiers ////////////////////////////////
     /// @notice Restricts the invocation of methods exclusively to the Compound Timelock
     modifier onlyCompTimelock() {
@@ -222,28 +220,6 @@ contract TrustSetup {
 
         divestmentQueued = false;
         emit CompDivestedCompleted(compBalance, block.timestamp);
-    }
-
-    /// @notice Derisks from the strategy by sending back all assets to the comptroller
-    /// @custom:gas-optimisation While derisking saving gas by caching any balance does not provide any meaniful savings or benefit versus readability
-    function deriskFromStrategy() external onlyCompTimelock {
-        // set neutral currentPhase
-        currentPhase = Phase.NEUTRAL;
-
-        // sends back to comptroller any existing COMP balance. it can handle the token natively
-        if (COMP.balanceOf(address(this)) > 0) COMP.safeTransfer(COMPTROLLER, COMP.balanceOf(address(this)));
-
-        // sends back to Compound Timelock any existing gauge balance
-        if (GAUGE.balanceOf(address(this)) > 0) {
-            // 1:1 ratio (GAUGE:BPT)
-            GAUGE.withdraw(GAUGE.balanceOf(address(this)));
-            BPT.transfer(COMPOUND_TIMELOCK, BPT.balanceOf(address(this)));
-        }
-
-        // sends back to Compound Timelock any existing WETH
-        if (WETH.balanceOf(address(this)) > 0) WETH.safeTransfer(COMPOUND_TIMELOCK, WETH.balanceOf(address(this)));
-
-        emit DeriskActivated(block.timestamp);
     }
 
     /// @notice Sets the slippage for the Balancer pool operations
