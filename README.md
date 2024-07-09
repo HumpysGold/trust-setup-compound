@@ -7,28 +7,27 @@ The Compound Trust setup has being developed in response to concerns raised duri
 1. Concerns regarding authority and security around multisig
 2. Unclear investment strategy
 
-The setup offers clarity which entity has the authority to trigger specific actions, such as the Compound's timelock and the multisig, while the entire investment strategy is verifiable onchain.
+The setup offers clarity when Goldenboyz multisig has the authority to trigger specific actions and what each involves, key actions such as "invest" and "divest" requires prior approval from Compound Governance through a process referred to as granting a "Phase".
 
 ## Architecture
 
 ### Contract workflow
 
 1. COMP funds will be transferred into the setup by the Compound's comptroller.
-2. The Compound Timelock will invoke `invest()`.
-    1. Once the timelock successfully calls `invest()`, Goldenboyz multisig will periodically call `swapRewardsForWeth(uint256)`.
-    2. Bots will call `buyWethWithComp(uint256)` when the optimal opportunity arises, sending COMP's proceeds to the Compound comptroller directly.
-3. If complete or partial divestment from the setup is desired, the Compound's Timelock will trigger `commenceDivestment(uint256)`.
-4. To finalize the investment, after the withdrawal time delay from goldCOMP has elapsed, the Timelock will call the `completeDivestment()` method. Sending all COMP balance back into the Compound's comptroller.
-
-### Compound's Timelock controls
-
-1. Invest (see `invest()` method): Invests COMP funds into the Balancer pool and stakes the BPT into the appropriate gauge. The first step involves depositing COMP into goldCOMP, which is then single-sidedly deposited into the Balancer Pool.
-2. Commence divestment (see `commenceDivestment(uint256)` method): Proceeds to withdraw from the gauge and the Balancer pool, and initiates the withdrawal queue from goldCOMP. Fully or partially.
-3. Complete divestment (see `completeDivestment()` method): Finalizes the divestment from the strategy by officially withdrawing the queued amount of goldCOMP and directly transferring the entire COMP balance in the contract to the Compound comptroller.
+2. Compound Governance will invoke `grantPhase(uint8)` updating the "Phase" to `ALLOW_INVESTMENT`, which will grant to the Goldenboyz multisig rights to call `invest(uint256)`.
+    1. Once the phase is updated successfully. The Goldenboyz multisig will be able to call `invest(uint256)`, and will periodically call `swapRewardsForWeth(uint256)` for rewards handling.
+    2. Bots will call `buyWethWithComp(uint256,uint256)` when the optimal opportunity arises, sending COMP's proceeds to the Compound comptroller directly.
+3. If complete or partial divestment from the setup is desired, Compound Governance will call again `grantPhase(uint8)` setting the "Phase" to `ALLOW_DIVESTMENT`.
+4. To finalize the investment, after the withdrawal time delay from goldCOMP has elapsed, the Goldenboyz multisig will call the `completeDivestment()` method. Sending all COMP balance back into the Compound's comptroller.
 
 ### Goldenboyz multisig controls
 
-1. Swap gauge rewards for WETH (see `swapRewardsForWeth(uint256)` method)
+1. Invest
+2. Divest (including queuing a divestment and its completion)
+3. Convert rewards into WETH
+4. Update oracle fee (setter)
+
+Actions **(i)** and **(ii)** requires previous approval from Compound Governance to be able to trigger, rest can be call at any time.
 
 ### Why is the `swapRewardsForWeth(uint256)` function restricted to being called only by the multisig?
 
